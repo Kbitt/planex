@@ -1,5 +1,5 @@
 import { computed, reactive, ref, watchEffect } from '@vue/composition-api'
-import { MutationTree } from 'vuex'
+import { MutationTree, Store } from 'vuex'
 import { getStore, usingVuex } from './store'
 
 function getAllPropertyNames(obj: any) {
@@ -67,20 +67,6 @@ type NonFunctionKeys<T> = {
   [P in keyof T]-?: T[P] extends (...args: any) => any ? never : P
 }[keyof T]
 
-class Foo {
-  value = 123
-
-  str = '123'
-
-  get next() {
-    return this.value + 1
-  }
-
-  setValue(value: number) {}
-
-  foo() {}
-}
-
 type StateKeys<T> = {
   [Key in keyof T]: Key extends WritableKeys<T>
     ? Key extends NonFunctionKeys<T>
@@ -97,24 +83,20 @@ type ExtractGetters<T> = Pick<T, ReadonlyKeys<T>>
 
 type ExtractActions<T> = Pick<T, FunctionKeys<T>>
 
-type S = ExtractState<Foo>
-
-type G = ExtractGetters<Foo>
-
-type A = ExtractActions<Foo>
-
 type StateSubscriber<T> = (state: ExtractState<T>) => void
 type GetterSubscriber<T> = (getters: ExtractGetters<T>) => void
 
 const defStore = <T extends {}>(
   options: T
 ): [T, { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] }] => {
-  const store = {} as any
+  const store = options as any
   const stateKeys: string[] = []
   const getterKeys: string[] = []
   const actionKeys: string[] = []
 
-  getAllPropertyNames(options)
+  const properties = getAllPropertyNames(options)
+
+  properties
     .filter(key => !defaultObjectNames.has(key))
     .forEach(key => {
       const property = getNearestPropertyDescriptor(options, key)
@@ -122,22 +104,40 @@ const defStore = <T extends {}>(
       // action
       if (typeof property.value === 'function') {
         actionKeys.push(key)
-        store[key] = property.value.bind(store)
+        Object.defineProperty(store, key, {
+          enumerable: true,
+          value: property.value.bind(store),
+        })
+        return
         // computed
       } else if (property.get) {
         getterKeys.push(key)
         if (property.set) {
-          store[key] = computed({
+          const c = computed({
             get: () => property.get!.call(store),
             set: value => property.set!.call(store, value),
           })
+          Object.defineProperty(store, key, {
+            enumerable: true,
+            get: () => c.value,
+            set: value => (c.value = value),
+          })
         } else {
-          store[key] = computed(() => property.get!.call(store))
+          const c = computed(() => property.get!.call(store))
+          Object.defineProperty(store, key, {
+            enumerable: true,
+            get: () => c.value,
+          })
         }
         // state
       } else {
         stateKeys.push(key)
-        store[key] = ref(property.value)
+        const refValue = ref(property.value)
+        Object.defineProperty(store, key, {
+          enumerable: true,
+          get: () => refValue.value,
+          set: value => (refValue.value = value),
+        })
       }
     })
 

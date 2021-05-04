@@ -1,4 +1,4 @@
-import { defineComponent, reactive } from '@vue/composition-api'
+import { defineComponent, reactive, watchEffect } from '@vue/composition-api'
 import { shallowMount } from '@vue/test-utils'
 import { Store } from 'vuex'
 import Planex, { defineStore } from '../src'
@@ -269,6 +269,78 @@ describe('create-store', () => {
       baseStore.value = 444
 
       expect(store.baseValue).toBe(444)
+    })
+
+    it('set deep state value', cb => {
+      const useStore = defineStore(
+        class {
+          state = {
+            foo: {
+              bar: {
+                value: 123,
+              },
+            },
+          }
+        }
+      )
+
+      const store = useStore()
+
+      let firstCall = true
+
+      const mock = jest.fn()
+
+      watchEffect(() => {
+        const _ = store.state.foo.bar.value
+        if (firstCall) {
+          firstCall = false
+          return
+        }
+        mock()
+      })
+
+      store.state.foo.bar.value = 444
+
+      setTimeout(() => {
+        expect(mock).toHaveBeenCalled()
+        cb()
+      })
+    })
+
+    it('store is instanceof class, arrow function keeps lexical this', () => {
+      const defaultMock = jest.fn()
+      abstract class AbsStore {
+        foo() {
+          if (this.bar) {
+            this.bar()
+          } else {
+            defaultMock()
+          }
+        }
+
+        bar?: () => void
+      }
+
+      let instance: any = undefined
+
+      class Store extends AbsStore {
+        bar = () => {
+          instance = this
+        }
+      }
+
+      const useStore = defineStore(Store)
+
+      const store = useStore()
+
+      store.bar()
+
+      expect(defaultMock).not.toHaveBeenCalled()
+
+      expect(store instanceof Store).toBe(true)
+      expect(instance instanceof Store).toBe(true)
+
+      expect(store).toBe(instance)
     })
   })
 })
