@@ -1,6 +1,12 @@
 <template>
   <div>
     <h1>Todos ({{ store.todos.length }})</h1>
+    <h2>Done: {{ store.doneCount }}</h2>
+    <h3>Loading: {{ store.loading }}</h3>
+    <div>
+      <button type="button" @click="store.setLoading(true)">On</button>
+      <button type="button" @click="store.setLoading(false)">Off</button>
+    </div>
     <button type="button" @click="store.add">Add</button>
     <label>List:</label>
     <input type="text" v-model="store.name" />

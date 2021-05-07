@@ -1,4 +1,9 @@
-import { defineComponent, reactive, watchEffect } from '@vue/composition-api'
+import {
+  computed,
+  defineComponent,
+  reactive,
+  watchEffect,
+} from '@vue/composition-api'
 import { shallowMount } from '@vue/test-utils'
 import { Store } from 'vuex'
 import Planex, { defineStore } from '../src'
@@ -341,6 +346,29 @@ describe('create-store', () => {
       expect(instance instanceof Store).toBe(true)
 
       expect(store).toBe(instance)
+    })
+
+    it('getter reacts to private state change', () => {
+      const useStore = defineStore(
+        class {
+          private _value = false
+          get value() {
+            return this._value
+          }
+
+          setValue(value: boolean) {
+            this._value = value
+          }
+        }
+      )
+
+      const store = useStore()
+
+      expect(store.value).toBe(false)
+
+      store.setValue(true)
+
+      expect(store.value).toBe(true)
     })
   })
 })

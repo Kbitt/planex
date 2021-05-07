@@ -8,6 +8,13 @@ export type Todo = {
 class TodoStore {
   name = ''
   todos: Todo[] = []
+
+  private _loading = false
+  get loading() { return this._loading }
+
+  setLoading(value: boolean) {
+    this._loading = value
+  }
   add() {
     this.todos.unshift({ done: false, text: '' })
   }
@@ -26,6 +33,9 @@ class TodoStore {
   }
   get done() {
     return this.todos.filter(({ done }) => done)
+  }
+  get doneCount() {
+    return this.done.length
   }
 }
 

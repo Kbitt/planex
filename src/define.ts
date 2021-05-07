@@ -113,30 +113,28 @@ const defStore = <T extends {}>(
       } else if (property.get) {
         getterKeys.push(key)
         if (property.set) {
-          const c = computed({
-            get: () => property.get!.call(store),
-            set: value => property.set!.call(store, value),
-          })
           Object.defineProperty(store, key, {
             enumerable: true,
-            get: () => c.value,
-            set: value => (c.value = value),
+            configurable: true,
+            value: computed({
+              get: () => property.get!.call(store),
+              set: value => property.set!.call(store, value),
+            }),
           })
         } else {
-          const c = computed(() => property.get!.call(store))
           Object.defineProperty(store, key, {
             enumerable: true,
-            get: () => c.value,
+            configurable: true,
+            value: computed(() => property.get!.call(store)),
           })
         }
         // state
       } else {
         stateKeys.push(key)
-        const refValue = ref(property.value)
         Object.defineProperty(store, key, {
           enumerable: true,
-          get: () => refValue.value,
-          set: value => (refValue.value = value),
+          configurable: true,
+          value: ref(property.value),
         })
       }
     })
