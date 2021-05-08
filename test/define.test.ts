@@ -370,5 +370,50 @@ describe('create-store', () => {
 
       expect(store.value).toBe(true)
     })
+
+    it('$refs works', () => {
+      const useStore = defineStore(
+        class {
+          private _value = false
+
+          get value() {
+            return this._value
+          }
+
+          setValue(value: boolean) {
+            this._value = value
+          }
+
+          private _count = 0
+
+          get count() {
+            return this._count
+          }
+          set count(value) {
+            this._count = value
+          }
+        }
+      )
+
+      const store = useStore()
+
+      const { value, count, setValue } = useStore.$refs
+
+      expect(store.value).toBe(false)
+      expect(value.value).toBe(false)
+
+      expect(store.count).toBe(0)
+      expect(count.value).toBe(0)
+
+      setValue(true)
+
+      expect(store.value).toBe(true)
+      expect(value.value).toBe(true)
+
+      store.setValue(false)
+
+      expect(store.value).toBe(false)
+      expect(value.value).toBe(false)
+    })
   })
 })

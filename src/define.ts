@@ -7,7 +7,9 @@ import {
   MappedComputedGetters,
   MappedComputedState,
   MappedMethods,
+  MappedRefs,
   ResultType,
+  UseStore,
 } from './types'
 import {
   defaultObjectNames,
@@ -18,8 +20,12 @@ import {
 const defStore = <T extends {}>(
   options: T,
   id: string
-): [T, { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] }] => {
+): [
+  MappedRefs<T>,
+  { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] }
+] => {
   const store = options as any
+  const def = {} as any
   const stateKeys: string[] = []
   const getterKeys: string[] = []
   const actionKeys: string[] = []
@@ -39,55 +45,59 @@ const defStore = <T extends {}>(
     if (typeof property.value === 'function') {
       planexLog(`(${id}) ${key} is action`)
       actionKeys.push(key)
-      Object.defineProperty(store, key, {
-        enumerable: true,
-        configurable: true,
-        value: property.value.bind(store),
-      })
+      ;[options, def].forEach(target =>
+        Object.defineProperty(target, key, {
+          enumerable: true,
+          configurable: true,
+          value: property.value.bind(store),
+        })
+      )
       return
       // computed
     } else if (property.get) {
       getterKeys.push(key)
       if (property.set) {
         planexLog(`(${id}) ${key} is computed`)
-        Object.defineProperty(store, key, {
-          enumerable: true,
-          configurable: true,
-          value: computed({
-            get: () => property.get!.call(store),
-            set: value => property.set!.call(store, value),
-          }),
+        const value = computed({
+          get: () => property.get!.call(store),
+          set: value => property.set!.call(store, value),
+        })
+        ;[options, def].forEach(target => {
+          Object.defineProperty(target, key, {
+            enumerable: true,
+            configurable: true,
+            value,
+          })
         })
       } else {
         planexLog(`(${id}) ${key} is getter`)
-        Object.defineProperty(store, key, {
-          enumerable: true,
-          configurable: true,
-          value: computed(() => property.get!.call(store)),
-        })
+        const value = computed(() => property.get!.call(store))
+        ;[options, def].forEach(target =>
+          Object.defineProperty(target, key, {
+            enumerable: true,
+            configurable: true,
+            value,
+          })
+        )
       }
       // state
     } else {
       planexLog(`(${id}) ${key} is state`)
+
       stateKeys.push(key)
-      Object.defineProperty(store, key, {
-        enumerable: true,
-        configurable: true,
-        value: ref(property.value),
-      })
+      const value = ref(property.value)
+      ;[options, def].forEach(target =>
+        Object.defineProperty(store, key, {
+          enumerable: true,
+          configurable: true,
+          value,
+        })
+      )
     }
   })
 
-  return [store, { stateKeys, getterKeys, actionKeys }]
+  return [def, { stateKeys, getterKeys, actionKeys }]
 }
-
-const filter = (obj: any, keys: string[]) =>
-  keys.reduce((result: any, next: any) =>
-    Object.assign(
-      typeof result === 'string' ? { [result as string]: obj[result] } : result,
-      { [next]: obj[next] }
-    )
-  )
 
 function propogateToVuex(
   id: string,
@@ -135,13 +145,6 @@ function propogateToVuex(
 let uid = 1
 
 const nextId = () => '' + uid++
-
-export type UseStore<T> = {
-  (): ResultType<T>
-  $mapComputed(): MappedComputedState<ResultType<T>> &
-    MappedComputedGetters<ResultType<T>>
-  $mapMethods(): MappedMethods<ResultType<T>>
-} & (T extends { new (): {} } ? { $class: T } : {})
 
 /**
  * Define a store, returning its use hook.
@@ -192,10 +195,9 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   stateKeys = keys.stateKeys
   getterKeys = keys.getterKeys
   actionKeys = keys.actionKeys
-  store = def
 
   planexLog(`(${storeId}) creating reactive store instance`)
-  store = reactive(store) as ReturnType<UseStore<T>>
+  store = reactive(instance) as ReturnType<UseStore<T>>
 
   const useStore = (() => {
     if (usingVuex() && options.id !== false && !vuexPropogated) {
@@ -207,11 +209,12 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
 
   let computed: any
 
+  useStore.$refs = def
+
   useStore.$mapComputed = () => {
     if (computed) {
       return { ...computed }
     }
-    const store = useStore() as any
     computed = {} as any
     stateKeys.forEach(key => {
       computed[key] = () => store[key]
@@ -223,10 +226,9 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   }
 
   useStore.$mapMethods = () => {
-    const store = useStore() as any
     const methods = {} as any
     actionKeys.forEach(key => {
-      methods[key] = (store as any)[key].bind(store)
+      methods[key] = store[key].bind(store)
     })
     return methods
   }
