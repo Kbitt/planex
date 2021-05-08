@@ -6,7 +6,10 @@ import router from './router'
 import store from './store'
 
 Vue.use(VueCompositionApi)
-Vue.use(Planex, { useVuex: { store } })
+Vue.use(Planex, {
+  useVuex: { store },
+  logging: true,
+})
 
 Vue.config.productionTip = false
 

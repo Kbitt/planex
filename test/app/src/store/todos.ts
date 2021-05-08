@@ -10,7 +10,9 @@ class TodoStore {
   todos: Todo[] = []
 
   private _loading = false
-  get loading() { return this._loading }
+  get loading() {
+    return this._loading
+  }
 
   setLoading(value: boolean) {
     this._loading = value

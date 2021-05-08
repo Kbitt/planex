@@ -1,9 +1,10 @@
 import { Configuration } from 'webpack'
 
 const config: Configuration = {
-  mode: 'production',
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   target: 'node',
   entry: './src/index.ts',
+  devtool: 'source-map',
   resolve: {
     // Add `.ts` and `.tsx` as a resolvable extension.
     extensions: ['.ts', '.tsx', '.js'],

@@ -1,143 +1,82 @@
 import { computed, reactive, ref, watchEffect } from '@vue/composition-api'
-import { MutationTree, Store } from 'vuex'
+import { MutationTree } from 'vuex'
+import { planexLog } from './logging'
 import { getStore, usingVuex } from './store'
-
-function getAllPropertyNames(obj: any) {
-  const props: string[] = []
-
-  do {
-    Object.getOwnPropertyNames(obj).forEach(function (prop) {
-      if (props.indexOf(prop) === -1) {
-        props.push(prop)
-      }
-    })
-  } while ((obj = Object.getPrototypeOf(obj)))
-
-  return props
-}
-
-function getNearestPropertyDescriptor(obj: any, key: string) {
-  while (obj) {
-    const property = Object.getOwnPropertyDescriptor(obj, key)
-    if (property) {
-      return property
-    }
-    obj = Object.getPrototypeOf(obj)
-  }
-}
-
-const defaultObjectNames = new Set<string>(
-  Object.getOwnPropertyNames(Object.getPrototypeOf({}))
-)
-
-type Equals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends <
-  T
->() => T extends Y ? 1 : 2
-  ? A
-  : B
-
-/**
- * Get all keys for the given type that are writable.
- */
-type WritableKeys<Type> = {
-  [Key in keyof Type]-?: Equals<
-    { [K in Key]: Type[Key] },
-    { -readonly [K in Key]: Type[Key] },
-    Key
-  >
-}[keyof Type]
-
-/**
- * Get all keys for the given type that are readonly.
- */
-type ReadonlyKeys<Type> = {
-  [Key in keyof Type]-?: Equals<
-    { [K in Key]: Type[Key] },
-    { -readonly [Q in Key]: Type[Key] },
-    never,
-    Key
-  >
-}[keyof Type]
-
-type FunctionKeys<T> = {
-  [P in keyof T]-?: T[P] extends (...args: any) => any ? P : never
-}[keyof T]
-
-type NonFunctionKeys<T> = {
-  [P in keyof T]-?: T[P] extends (...args: any) => any ? never : P
-}[keyof T]
-
-type StateKeys<T> = {
-  [Key in keyof T]: Key extends WritableKeys<T>
-    ? Key extends NonFunctionKeys<T>
-      ? Key
-      : never
-    : never
-}[keyof T]
-
-type ExtractState<T> = Pick<T, StateKeys<T>>
-
-type GetterKeys<T> = keyof Omit<T, WritableKeys<T>>
-
-type ExtractGetters<T> = Pick<T, ReadonlyKeys<T>>
-
-type ExtractActions<T> = Pick<T, FunctionKeys<T>>
-
-type StateSubscriber<T> = (state: ExtractState<T>) => void
-type GetterSubscriber<T> = (getters: ExtractGetters<T>) => void
+import {
+  DefineOptions,
+  MappedComputedGetters,
+  MappedComputedState,
+  MappedMethods,
+  ResultType,
+} from './types'
+import {
+  defaultObjectNames,
+  getAllPropertyNames,
+  getNearestPropertyDescriptor,
+} from './util'
 
 const defStore = <T extends {}>(
-  options: T
+  options: T,
+  id: string
 ): [T, { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] }] => {
   const store = options as any
   const stateKeys: string[] = []
   const getterKeys: string[] = []
   const actionKeys: string[] = []
 
-  const properties = getAllPropertyNames(options)
+  const properties = getAllPropertyNames(options).filter(
+    key => !defaultObjectNames.has(key)
+  )
 
-  properties
-    .filter(key => !defaultObjectNames.has(key))
-    .forEach(key => {
-      const property = getNearestPropertyDescriptor(options, key)
-      if (!property) return
-      // action
-      if (typeof property.value === 'function') {
-        actionKeys.push(key)
-        Object.defineProperty(store, key, {
-          enumerable: true,
-          value: property.value.bind(store),
-        })
-        return
-        // computed
-      } else if (property.get) {
-        getterKeys.push(key)
-        if (property.set) {
-          Object.defineProperty(store, key, {
-            enumerable: true,
-            configurable: true,
-            value: computed({
-              get: () => property.get!.call(store),
-              set: value => property.set!.call(store, value),
-            }),
-          })
-        } else {
-          Object.defineProperty(store, key, {
-            enumerable: true,
-            configurable: true,
-            value: computed(() => property.get!.call(store)),
-          })
-        }
-        // state
-      } else {
-        stateKeys.push(key)
+  properties.forEach(key => {
+    planexLog(`(${id}) configuring key: ${key}`)
+    const property = getNearestPropertyDescriptor(options, key)
+    if (!property) {
+      planexLog(`(${id}) no property for ${key} (skip)`)
+      return
+    }
+    // action
+    if (typeof property.value === 'function') {
+      planexLog(`(${id}) ${key} is action`)
+      actionKeys.push(key)
+      Object.defineProperty(store, key, {
+        enumerable: true,
+        configurable: true,
+        value: property.value.bind(store),
+      })
+      return
+      // computed
+    } else if (property.get) {
+      getterKeys.push(key)
+      if (property.set) {
+        planexLog(`(${id}) ${key} is computed`)
         Object.defineProperty(store, key, {
           enumerable: true,
           configurable: true,
-          value: ref(property.value),
+          value: computed({
+            get: () => property.get!.call(store),
+            set: value => property.set!.call(store, value),
+          }),
+        })
+      } else {
+        planexLog(`(${id}) ${key} is getter`)
+        Object.defineProperty(store, key, {
+          enumerable: true,
+          configurable: true,
+          value: computed(() => property.get!.call(store)),
         })
       }
-    })
+      // state
+    } else {
+      planexLog(`(${id}) ${key} is state`)
+      stateKeys.push(key)
+      Object.defineProperty(store, key, {
+        enumerable: true,
+        configurable: true,
+        value: ref(property.value),
+      })
+    }
+  })
 
   return [store, { stateKeys, getterKeys, actionKeys }]
 }
@@ -158,7 +97,7 @@ function propogateToVuex(
 ) {
   const mutations: MutationTree<any> = {}
   const vuexStore = getStore()
-
+  if (vuexStore.hasModule(id.split('/'))) return
   ;([
     ['state', stateKeys],
     ['getters', getterKeys],
@@ -193,48 +132,9 @@ function propogateToVuex(
   })
 }
 
-type ResultType<T> = T extends { new (): infer R }
-  ? R
-  : T extends () => infer R
-  ? R
-  : T extends {}
-  ? T
-  : never
-
 let uid = 1
 
 const nextId = () => '' + uid++
-
-export type MappedComputedState<Type> = {
-  [Key in StateKeys<Type>]: {
-    get: () => Type[Key]
-    set: (value: Type[Key]) => void
-  }
-}
-
-export type MappedComputedGetters<Type> = {
-  [Key in GetterKeys<Type>]: () => Type[Key]
-}
-
-export type MappedMethods<Type> = {
-  [Key in FunctionKeys<Type>]: Type[Key]
-}
-
-/**
- * Extra store configuration options
- */
-export type DefineOptions = {
-  /**
-   * Sets the store's ID, which will be used for a generated Vuex module (if enabled)
-   * If set to `false`, then Vuex integration with be disabled for this store (if it is enabled via plugin config.)
-   */
-
-  id?: string | false
-}
-
-export type Mapper<T> = {
-  [P in keyof T]?: string
-}
 
 export type UseStore<T> = {
   (): ResultType<T>
@@ -253,7 +153,7 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   objectOrConstructor: T,
   options: DefineOptions = {}
 ): UseStore<T> {
-  const { id } = options
+  const storeId = options.id || nextId()
   let store: any | undefined = undefined
 
   let stateKeys: string[], getterKeys: string[], actionKeys: string[]
@@ -263,6 +163,7 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
     objectOrConstructor: T
   ): ResultType<T> => {
     if (typeof objectOrConstructor === 'object') {
+      planexLog('Received object config')
       return objectOrConstructor as ResultType<T>
     }
 
@@ -270,9 +171,11 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
       const fn = objectOrConstructor as Function
       try {
         const instance = new (fn as any)() as ResultType<T>
+        planexLog('Received class config')
         isClass = true
         return instance
       } catch (_) {
+        planexLog('Received function config')
         return fn() as ResultType<T>
       }
     }
@@ -282,24 +185,24 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
 
   const instance = getInstance(objectOrConstructor)
 
-  const useStore = (() => {
-    if (store) {
-      return store
-    }
+  let vuexPropogated = false
 
-    const [def, keys] = defStore(instance)
-    stateKeys = keys.stateKeys
-    getterKeys = keys.getterKeys
-    actionKeys = keys.actionKeys
+  planexLog(`(${storeId}) creating store definition`)
+  const [def, keys] = defStore(instance, storeId)
+  stateKeys = keys.stateKeys
+  getterKeys = keys.getterKeys
+  actionKeys = keys.actionKeys
+  store = def
 
-    store = reactive(def) as ReturnType<UseStore<T>>
+  planexLog(`(${storeId}) creating reactive store instance`)
+  store = reactive(store) as ReturnType<UseStore<T>>
 
-    if (usingVuex() && id !== false) {
-      propogateToVuex(id ?? nextId(), store, stateKeys, getterKeys)
-    }
+  if (usingVuex() && options.id !== false && !vuexPropogated) {
+    propogateToVuex(storeId, store, stateKeys, getterKeys)
+    vuexPropogated = true
+  }
 
-    return store!
-  }) as UseStore<T>
+  const useStore = (() => store) as UseStore<T>
 
   let computed: any
 
