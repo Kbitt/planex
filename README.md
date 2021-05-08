@@ -132,6 +132,8 @@ const useStore = (api: () => Promise<string[]>) => {
 
 ## Use your store
 
+### Use the result of the defineStore hook
+
 ```html
 <template>
   <button type="button" @click="store.increment">{{ store.count }}</button>
@@ -150,9 +152,70 @@ const useStore = (api: () => Promise<string[]>) => {
 </script>
 ```
 
+### Use $refs
+
+The `$refs` property of the use store hook returned from `defineStore` contains the properties of the store as refs, (except for the actions, they're there as regular functions). This makes it easy to spread to the store into your setup data so you can access them directly by name instead of via `store.*`.
+
+```html
+<template>
+  <button type="button" @click="increment">{{ count }}</button>
+</template>
+<script lang="ts">
+  import { defineComponent } from '@vue/composition-api'
+  import { useCounter } from './counter'
+
+  export default defineComponent({
+    setup: () => {
+      return { ...useCounter.$refs }
+    },
+  })
+</script>
+```
+
+### Use with Options API
+
+Use `$mapComputed` and `$mapMethods` methods of your use store hook to pass the properties to the respective options API config.
+
+```html
+<template>
+  <button type="button" @click="increment">{{ count }}</button>
+</template>
+<script lang="ts">
+  import { defineComponent } from '@vue/composition-api'
+  import { useCounter } from './counter'
+
+  export default defineComponent({
+    computed: {
+      ...useCounter.$mapComputed(),
+    },
+    methods: {
+      ...useCounter.$mapMethods(),
+    },
+  })
+</script>
+```
+
+## A note about actions
+
+All actions defined in the store are converted to a return type of `Promise<void>`. This is reflected in the types of your store's actions as well as runtime behavior. This is intentional, to promote the reactive state driven pattern, as well as to avoid side effects from the state accessed in an action unintentionally being observed:
+
+```typescript
+watchEffect(() => {
+  // we want to watch a prop change and fire off an action
+  const someValue = props.someValue
+
+  // without this action being async, any state accessed in the action will be observed by watchEffect, creating an infinite loop
+  store.setValue(someValue)
+})
+```
+
+For any action that does not contain asynchronous code, the completion of the returned promise indicates it has finished, so you can still know when any state values set by the action have finished being set then.
+
+It is recommended that any async actions properly return a promise.
+
 ## Use with vuex
 
-Use the plugin options to enable propogating state/getters to vuex store. (Plugin is not necessary otherwise).
+Use the plugin options to enable propogating state/getters to vuex store. (Plugin is not necessary otherwise). State and getters are simply copied to vuex for inspection, changes made in devtools will not (currently) propogate back to the actual store.
 
 ```typescript
 // setup plugin at startup
