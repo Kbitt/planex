@@ -2,15 +2,7 @@ import { computed, reactive, ref, watchEffect } from '@vue/composition-api'
 import { MutationTree } from 'vuex'
 import { planexLog } from './logging'
 import { getStore, usingVuex } from './store'
-import {
-  DefineOptions,
-  MappedComputedGetters,
-  MappedComputedState,
-  MappedMethods,
-  MappedRefs,
-  ResultType,
-  UseStore,
-} from './types'
+import { DefineOptions, MappedRefs, ResultType, UseStore } from './types'
 import {
   defaultObjectNames,
   getAllPropertyNames,
@@ -45,11 +37,19 @@ const defStore = <T extends {}>(
     if (typeof property.value === 'function') {
       planexLog(`(${id}) ${key} is action`)
       actionKeys.push(key)
+      const value = (...args: any) => {
+        return new Promise<void>(resolve => {
+          setTimeout(() => {
+            const result = property.value.call(store, ...args)
+            Promise.resolve(result).then(resolve)
+          })
+        })
+      }
       ;[options, def].forEach(target =>
         Object.defineProperty(target, key, {
           enumerable: true,
           configurable: true,
-          value: property.value.bind(store),
+          value,
         })
       )
       return

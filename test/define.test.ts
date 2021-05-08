@@ -9,6 +9,8 @@ import { Store } from 'vuex'
 import Planex, { defineStore } from '../src'
 import { getLocalVue } from './helper'
 
+const asyncTimeout = () => new Promise(resolve => setTimeout(resolve))
+
 describe('create-store', () => {
   let localVue: ReturnType<typeof getLocalVue>
   let vuexStore: Store<any>
@@ -20,7 +22,7 @@ describe('create-store', () => {
   })
 
   describe('defineStore', () => {
-    it('works', () => {
+    it('works', async () => {
       const nextMock = jest.fn()
       const useStore = defineStore(
         class {
@@ -54,13 +56,13 @@ describe('create-store', () => {
 
       expect(nextMock).toHaveBeenCalledTimes(1)
 
-      store.setValue(444)
+      await store.setValue(444)
       expect(store.next).toBe(445)
 
       expect(nextMock).toHaveBeenCalledTimes(2)
     })
 
-    it('inheritance', () => {
+    it('inheritance', async () => {
       const mock = jest.fn()
       class BaseFoo {
         private val = 123
@@ -85,14 +87,14 @@ describe('create-store', () => {
 
       const store = useStore()
 
-      store.foo()
+      await store.foo()
 
       expect(mock).toHaveBeenCalled()
 
       expect('val' in store).toBe(true)
     })
 
-    it('extend $class', () => {
+    it('extend $class', async () => {
       const mockFoo = jest.fn()
       const useBase = defineStore(
         class {
@@ -113,11 +115,11 @@ describe('create-store', () => {
 
       const store = useStore()
 
-      store.bar()
+      await store.bar()
 
       expect(mockBar).toHaveBeenCalled()
 
-      store.foo()
+      await store.foo()
 
       expect(mockFoo).toHaveBeenCalled()
     })
@@ -171,7 +173,7 @@ describe('create-store', () => {
       expect(storeB === storeA).toBe(true)
     })
 
-    it('object syntax', () => {
+    it('object syntax', async () => {
       const useStore = defineStore({
         value: 123,
         setValue(value: number) {
@@ -185,12 +187,12 @@ describe('create-store', () => {
 
       const value = 444
 
-      store.setValue(value)
+      await store.setValue(value)
 
       expect(store.value).toBe(value)
     })
 
-    it('function syntax', () => {
+    it('function syntax', async () => {
       const useStore = defineStore(() => ({
         value: 123,
         setValue(value: number) {
@@ -204,7 +206,7 @@ describe('create-store', () => {
 
       const value = 444
 
-      store.setValue(value)
+      await store.setValue(value)
 
       expect(store.value).toBe(value)
     })
@@ -249,6 +251,8 @@ describe('create-store', () => {
       expect(p.innerHTML).toBe('1')
       btn.click()
       await localVue.nextTick()
+
+      await asyncTimeout()
 
       expect(btn.innerHTML).toBe('1')
       expect(p.innerHTML).toBe('2')
@@ -312,7 +316,7 @@ describe('create-store', () => {
       })
     })
 
-    it('store is instanceof class, arrow function keeps lexical this', () => {
+    it('store is instanceof class, arrow function keeps lexical this', async () => {
       const defaultMock = jest.fn()
       abstract class AbsStore {
         foo() {
@@ -338,7 +342,7 @@ describe('create-store', () => {
 
       const store = useStore()
 
-      store.bar()
+      await store.bar()
 
       expect(defaultMock).not.toHaveBeenCalled()
 
@@ -348,7 +352,7 @@ describe('create-store', () => {
       expect(store).toBe(instance)
     })
 
-    it('getter reacts to private state change', () => {
+    it('getter reacts to private state change', async () => {
       const useStore = defineStore(
         class {
           private _value = false
@@ -366,12 +370,12 @@ describe('create-store', () => {
 
       expect(store.value).toBe(false)
 
-      store.setValue(true)
+      await store.setValue(true)
 
       expect(store.value).toBe(true)
     })
 
-    it('$refs works', () => {
+    it('$refs works', async () => {
       const useStore = defineStore(
         class {
           private _value = false
@@ -405,15 +409,43 @@ describe('create-store', () => {
       expect(store.count).toBe(0)
       expect(count.value).toBe(0)
 
-      setValue(true)
+      await setValue(true)
 
       expect(store.value).toBe(true)
       expect(value.value).toBe(true)
 
-      store.setValue(false)
+      await store.setValue(false)
 
       expect(store.value).toBe(false)
       expect(value.value).toBe(false)
+    })
+
+    it('action does not trigger reactivity on other properties', cb => {
+      const useStore = defineStore(
+        class {
+          value = ''
+
+          setValue(value: string) {
+            this.value = value
+          }
+        }
+      )
+
+      const store = useStore()
+
+      let callCount = 0
+      watchEffect(() => {
+        callCount++
+        if (callCount > 1) return
+        store.setValue('abc')
+      })
+
+      setTimeout(() => {
+        setTimeout(() => {
+          expect(callCount).toBe(1)
+          cb()
+        })
+      })
     })
   })
 })

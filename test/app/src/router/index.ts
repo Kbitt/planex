@@ -14,14 +14,6 @@ const routes: Array<RouteConfig> = [
     path: '/todos',
     name: 'Todos',
     component: () => import('../views/Todos.vue'),
-    children: [
-      {
-        path: '/detail/:id',
-        name: 'TodoDetail',
-        props: true,
-        component: () => import('../views/TodoDetail.vue')
-      }
-    ]
   },
   {
     path: '/about',
