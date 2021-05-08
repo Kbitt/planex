@@ -197,12 +197,13 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   planexLog(`(${storeId}) creating reactive store instance`)
   store = reactive(store) as ReturnType<UseStore<T>>
 
-  if (usingVuex() && options.id !== false && !vuexPropogated) {
-    propogateToVuex(storeId, store, stateKeys, getterKeys)
-    vuexPropogated = true
-  }
-
-  const useStore = (() => store) as UseStore<T>
+  const useStore = (() => {
+    if (usingVuex() && options.id !== false && !vuexPropogated) {
+      propogateToVuex(storeId, store, stateKeys, getterKeys)
+      vuexPropogated = true
+    }
+    return store
+  }) as UseStore<T>
 
   let computed: any
 
