@@ -7,6 +7,21 @@ export type Todo = {
 
 class TodoStore {
   name = ''
+
+  description = ''
+
+  get info() {
+    return {
+      name: this.name,
+      description: this.description,
+    }
+  }
+
+  set info({ name, description }) {
+    this.name = name
+    this.description = description
+  }
+
   todos: Todo[] = []
 
   private _loading = false

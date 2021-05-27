@@ -1,21 +1,30 @@
-import Vue from 'vue'
-import App from './App.vue'
-import VueCompositionApi from '@vue/composition-api'
+/// <reference types="vuex/types/vue" />
 import Planex from 'planex'
+import Vue from 'vue'
+import VueCompositionApi from '@vue/composition-api'
+import App from './App.vue'
 import router from './router'
-import store from './store'
 
 Vue.use(VueCompositionApi)
-Vue.use(Planex, {
-  useVuex: { store },
-  logging: true,
-})
+
+const useVuex = true
+
+Vue.use(Planex, { useVuex, disableInProduction: true })
 
 Vue.config.productionTip = false
 
-const args = { router, store }
+const getStore = (): Promise<{ store?: any }> => {
+  if (process.env.NODE_ENV !== 'production' && useVuex) {
+    return import('./store').then(({ default: store }) => ({ store }))
+  }
 
-new Vue({
-  ...args,
-  render: h => h(App),
-}).$mount('#app')
+  return Promise.resolve({})
+}
+
+getStore().then(options => {
+  new Vue({
+    ...options,
+    router,
+    render: h => h(App),
+  }).$mount('#app')
+})

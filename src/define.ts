@@ -1,6 +1,10 @@
-import { computed, reactive, ref, watchEffect } from '@vue/composition-api'
-import { MutationTree } from 'vuex'
+import { reactive } from '@vue/composition-api'
+import { Module, Store } from 'vuex'
+import { defineAction } from './action'
+import { defineComputed } from './computed'
+import { get } from './getset'
 import { planexLog } from './logging'
+import { defineState } from './state'
 import { getStore, usingVuex } from './store'
 import { DefineOptions, MappedRefs, ResultType, UseStore } from './types'
 import {
@@ -11,16 +15,24 @@ import {
 
 const defStore = <T extends {}>(
   options: T,
-  id: string
+  id: string,
+  getVuexStore?: () => Store<any>
 ): [
   MappedRefs<T>,
-  { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] }
+  { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] },
+  Module<any, any> | undefined
 ] => {
   const store = options as any
   const def = {} as any
   const stateKeys: string[] = []
   const getterKeys: string[] = []
   const actionKeys: string[] = []
+  const vuexOptions = getVuexStore
+    ? {
+        module: { namespaced: true } as Module<any, any>,
+        getStore: getVuexStore,
+      }
+    : undefined
 
   const properties = getAllPropertyNames(options).filter(
     key => !defaultObjectNames.has(key)
@@ -37,14 +49,12 @@ const defStore = <T extends {}>(
     if (typeof property.value === 'function') {
       planexLog(`(${id}) ${key} is action`)
       actionKeys.push(key)
-      const value = (...args: any) => {
-        return new Promise<void>(resolve => {
-          setTimeout(() => {
-            const result = property.value.call(store, ...args)
-            Promise.resolve(result).then(resolve)
-          })
-        })
-      }
+      const value = defineAction(
+        id,
+        key,
+        property.value.bind(store),
+        vuexOptions
+      )
       ;[options, def].forEach(target =>
         Object.defineProperty(target, key, {
           enumerable: true,
@@ -52,41 +62,32 @@ const defStore = <T extends {}>(
           value,
         })
       )
-      return
       // computed
     } else if (property.get) {
       getterKeys.push(key)
-      if (property.set) {
-        planexLog(`(${id}) ${key} is computed`)
-        const value = computed({
-          get: () => property.get!.call(store),
-          set: value => property.set!.call(store, value),
+
+      const value = defineComputed(
+        id,
+        key,
+        () => property.get!.call(store),
+        property.set ? (val: any) => property.set?.call(store, val) : undefined,
+        vuexOptions
+      )
+
+      ;[options, def].forEach(target => {
+        Object.defineProperty(target, key, {
+          enumerable: true,
+          configurable: true,
+          value,
         })
-        ;[options, def].forEach(target => {
-          Object.defineProperty(target, key, {
-            enumerable: true,
-            configurable: true,
-            value,
-          })
-        })
-      } else {
-        planexLog(`(${id}) ${key} is getter`)
-        const value = computed(() => property.get!.call(store))
-        ;[options, def].forEach(target =>
-          Object.defineProperty(target, key, {
-            enumerable: true,
-            configurable: true,
-            value,
-          })
-        )
-      }
+      })
       // state
     } else {
       planexLog(`(${id}) ${key} is state`)
 
       stateKeys.push(key)
-      const value = ref(property.value)
-      ;[options, def].forEach(target =>
+      const value = defineState(id, key, property.value, vuexOptions)
+      ;[options, def].forEach(() =>
         Object.defineProperty(store, key, {
           enumerable: true,
           configurable: true,
@@ -96,50 +97,7 @@ const defStore = <T extends {}>(
     }
   })
 
-  return [def, { stateKeys, getterKeys, actionKeys }]
-}
-
-function propogateToVuex(
-  id: string,
-  store: any,
-  stateKeys: string[],
-  getterKeys: string[]
-) {
-  const mutations: MutationTree<any> = {}
-  const vuexStore = getStore()
-  if (vuexStore.hasModule(id.split('/'))) return
-  ;([
-    ['state', stateKeys],
-    ['getters', getterKeys],
-  ] as [string, string[]][]).forEach(([type, keys]) => {
-    keys.forEach(key => {
-      const m = `set_${type}_${key}`
-      mutations[m] = (state, payload) => {
-        state[type][key] = payload
-      }
-    })
-  })
-
-  vuexStore.registerModule(id.split('/'), {
-    namespaced: true,
-    state: () => ({
-      state: {},
-      getters: {},
-    }),
-    mutations,
-  })
-  ;([
-    ['state', stateKeys],
-    ['getters', getterKeys],
-  ] as [string, string[]][]).forEach(([type, keys]) => {
-    keys.forEach(key => {
-      const m = `set_${type}_${key}`
-      watchEffect(() => {
-        const s = (store as any)[key]
-        vuexStore.commit(`${id}/${m}`, s)
-      })
-    })
-  })
+  return [def, { stateKeys, getterKeys, actionKeys }, vuexOptions?.module]
 }
 
 let uid = 1
@@ -191,21 +149,36 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   let vuexPropogated = false
 
   planexLog(`(${storeId}) creating store definition`)
-  const [def, keys] = defStore(instance, storeId)
+  const [def, keys, vuexModule] = defStore(
+    instance,
+    storeId,
+    usingVuex() && options.id !== false ? getStore : undefined
+  )
+
   stateKeys = keys.stateKeys
   getterKeys = keys.getterKeys
   actionKeys = keys.actionKeys
 
   planexLog(`(${storeId}) creating reactive store instance`)
+
+  if (vuexModule && usingVuex() && options.id !== false && !vuexPropogated) {
+    planexLog(`(${storeId}) registering vuex module`)
+    const vuexStore = getStore()
+    const path = storeId.split('/')
+    if (vuexStore.hasModule(path)) {
+      const state = get(vuexStore.state, path.join('.'))
+      Object.assign(vuexModule.state, state)
+      vuexStore.unregisterModule(path)
+    }
+    vuexStore.registerModule(path, vuexModule)
+    vuexPropogated = true
+  } else {
+    planexLog(`(${storeId}) NOT registering vuex module`)
+  }
+
   store = reactive(instance) as ReturnType<UseStore<T>>
 
-  const useStore = (() => {
-    if (usingVuex() && options.id !== false && !vuexPropogated) {
-      propogateToVuex(storeId, store, stateKeys, getterKeys)
-      vuexPropogated = true
-    }
-    return store
-  }) as UseStore<T>
+  const useStore = (() => store) as UseStore<T>
 
   let computed: any
 

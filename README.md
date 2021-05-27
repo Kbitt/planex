@@ -195,27 +195,9 @@ Use `$mapComputed` and `$mapMethods` methods of your use store hook to pass the 
 </script>
 ```
 
-## A note about actions
+## Devtools support through Vuex
 
-All actions defined in the store are converted to a return type of `Promise<void>`. This is reflected in the types of your store's actions as well as runtime behavior. This is intentional, to promote the reactive state driven pattern, as well as to avoid side effects from the state accessed in an action unintentionally being observed:
-
-```typescript
-watchEffect(() => {
-  // we want to watch a prop change and fire off an action
-  const someValue = props.someValue
-
-  // without this action being async, any state accessed in the action will be observed by watchEffect, creating an infinite loop
-  store.setValue(someValue)
-})
-```
-
-For any action that does not contain asynchronous code, the completion of the returned promise indicates it has finished, so you can still know when any state values set by the action have finished being set then.
-
-It is recommended that any async actions properly return a promise.
-
-## Use with vuex
-
-Use the plugin options to enable propogating state/getters to vuex store. (Plugin is not necessary otherwise). State and getters are simply copied to vuex for inspection, changes made in devtools will not (currently) propogate back to the actual store.
+Use the plugin options to enable vuex support. All stores you create with `defineStore` will be added as modules to your Vuex store. This enables support for the vue-devtools vuex pane, including all the normal vuex devtools features like time travelling, editing state values, etc.
 
 ```typescript
 // setup plugin at startup
@@ -239,4 +221,38 @@ const useCounter = defineStore({...}, { id: 'counter' })
 // or override the global vuex setting and disable for individual stores
 const useCounter = defineStore({...}, { id: false })
 
+```
+
+Without vuex enabled, you can completely remove vuex from your production code. However, since the vuex store must be passed to the vue instance to enable devtools support, it's a little tricky to conditionally remove it. The following example demonstrates one solution to making vuex tree-shakable in production:
+
+```typescript
+// store.ts
+import Vue from 'vue'
+import Vuex from 'vuex'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({})
+```
+
+```typescript
+import Vue from 'vue'
+import PlanexPlugin from 'planex'
+Vue.use(PlanexPlugin, { useVuex: { enabled: true, disableInProduction: true } })
+
+const getStore = (): Promise<{ store?: any }> => {
+  if (process.env.NODE_ENV !== 'production') {
+    return import('./store').then(({ default: store }) => ({ store }))
+  }
+
+  return Promise.resolve({})
+}
+
+getStore().then(options => {
+  new Vue({
+    ...options,
+    router,
+    render: h => h(App),
+  }).$mount('#app')
+})
 ```

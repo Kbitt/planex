@@ -1,11 +1,7 @@
-import {
-  computed,
-  defineComponent,
-  reactive,
-  watchEffect,
-} from '@vue/composition-api'
+import { defineComponent, watchEffect } from '@vue/composition-api'
 import { shallowMount } from '@vue/test-utils'
 import { Store } from 'vuex'
+import { UsageState } from 'webpack'
 import Planex, { defineStore } from '../src'
 import { getLocalVue } from './helper'
 
@@ -15,435 +11,522 @@ describe('create-store', () => {
   let localVue: ReturnType<typeof getLocalVue>
   let vuexStore: Store<any>
 
-  beforeEach(() => {
+  const setup = (enableVuex: boolean) => {
     localVue = getLocalVue()
+    if (!enableVuex) return
     vuexStore = new Store({ strict: true })
     localVue.use(Planex, { useVuex: { store: vuexStore } })
-  })
+  }
 
   describe('defineStore', () => {
-    it('works', async () => {
-      const nextMock = jest.fn()
-      const useStore = defineStore(
-        class {
-          value = 123
+    ;[true, false].forEach(enableVuex => {
+      describe(`with${enableVuex ? '' : 'out'} vuex`, () => {
+        beforeEach(() => {
+          setup(enableVuex)
+        })
 
-          private foo = 'abc'
+        it('works', async () => {
+          const nextMock = jest.fn()
+          const useStore = defineStore(
+            class {
+              value = 123
 
-          get next() {
-            nextMock()
-            return this.value + 1
+              private foo = 'abc'
+
+              get next() {
+                nextMock()
+                return this.value + 1
+              }
+
+              get upperFoo() {
+                return this.foo.toUpperCase()
+              }
+
+              setValue(value: number) {
+                this.value = value
+              }
+            }
+          )
+
+          const store = useStore()
+
+          expect(store.value).toBe(123)
+          expect(store.next).toBe(124)
+          expect(store.next).toBe(124)
+          expect(store.next).toBe(124)
+
+          expect(store.upperFoo).toBe('ABC')
+
+          expect(nextMock).toHaveBeenCalledTimes(1)
+
+          store.setValue(444)
+          expect(store.next).toBe(445)
+
+          expect(nextMock).toHaveBeenCalledTimes(2)
+        })
+
+        it('inheritance', () => {
+          const mock = jest.fn()
+          class BaseFoo {
+            private val = 123
+            foo() {
+              mock()
+            }
           }
 
-          get upperFoo() {
-            return this.foo.toUpperCase()
+          class Foo extends BaseFoo {
+            foo() {
+              super.foo()
+            }
           }
 
-          setValue(value: number) {
-            this.value = value
-          }
-        }
-      )
-
-      const store = useStore()
-
-      expect(store.value).toBe(123)
-      expect(store.next).toBe(124)
-      expect(store.next).toBe(124)
-      expect(store.next).toBe(124)
-
-      expect(store.upperFoo).toBe('ABC')
-
-      expect(nextMock).toHaveBeenCalledTimes(1)
-
-      await store.setValue(444)
-      expect(store.next).toBe(445)
-
-      expect(nextMock).toHaveBeenCalledTimes(2)
-    })
-
-    it('inheritance', async () => {
-      const mock = jest.fn()
-      class BaseFoo {
-        private val = 123
-        foo() {
-          mock()
-        }
-      }
-
-      class Foo extends BaseFoo {
-        foo() {
-          super.foo()
-        }
-      }
-
-      class SuperFoo extends Foo {
-        foo() {
-          super.foo()
-        }
-      }
-
-      const useStore = defineStore(SuperFoo)
-
-      const store = useStore()
-
-      await store.foo()
-
-      expect(mock).toHaveBeenCalled()
-
-      expect('val' in store).toBe(true)
-    })
-
-    it('extend $class', async () => {
-      const mockFoo = jest.fn()
-      const useBase = defineStore(
-        class {
-          foo() {
-            mockFoo()
-          }
-        }
-      )
-
-      const mockBar = jest.fn()
-      const useStore = defineStore(
-        class extends useBase.$class {
-          bar() {
-            mockBar()
-          }
-        }
-      )
-
-      const store = useStore()
-
-      await store.bar()
-
-      expect(mockBar).toHaveBeenCalled()
-
-      await store.foo()
-
-      expect(mockFoo).toHaveBeenCalled()
-    })
-
-    it('propogate to store', async () => {
-      const next = () => new Promise(resolve => setTimeout(resolve))
-      const useStore = defineStore(
-        class {
-          value = 123
-          get next() {
-            return this.value + 1
-          }
-          set next(value) {
-            this.value = value - 1
-          }
-        },
-        { id: 'store' }
-      )
-
-      const store = useStore()
-
-      await next()
-
-      expect(vuexStore.state.store.state.value).toBe(123)
-      expect(vuexStore.state.store.getters.next).toBe(124)
-
-      store.next = 400
-
-      await next()
-      expect(vuexStore.state.store.state.value).toBe(399)
-      expect(vuexStore.state.store.getters.next).toBe(400)
-
-      store.next = 1001
-
-      await next()
-      expect(vuexStore.state.store.state.value).toBe(1000)
-      expect(vuexStore.state.store.getters.next).toBe(1001)
-    })
-
-    it('returns same instance', () => {
-      const useStore = defineStore(
-        class {
-          foo = 123
-        }
-      )
-
-      const storeA = useStore()
-
-      const storeB = useStore()
-
-      expect(storeB === storeA).toBe(true)
-    })
-
-    it('object syntax', async () => {
-      const useStore = defineStore({
-        value: 123,
-        setValue(value: number) {
-          this.value = value
-        },
-      })
-
-      const store = useStore()
-
-      expect(store.value).toBe(123)
-
-      const value = 444
-
-      await store.setValue(value)
-
-      expect(store.value).toBe(value)
-    })
-
-    it('function syntax', async () => {
-      const useStore = defineStore(() => ({
-        value: 123,
-        setValue(value: number) {
-          this.value = value
-        },
-      }))
-
-      const store = useStore()
-
-      expect(store.value).toBe(123)
-
-      const value = 444
-
-      await store.setValue(value)
-
-      expect(store.value).toBe(value)
-    })
-
-    it('can map to options API', async () => {
-      const useCounter = defineStore(
-        class {
-          count = 0
-
-          increment() {
-            this.count++
+          class SuperFoo extends Foo {
+            foo() {
+              super.foo()
+            }
           }
 
-          get next() {
-            return this.count + 1
-          }
-          set next(value) {
-            this.count = value - 1
-          }
-        }
-      )
+          const useStore = defineStore(SuperFoo)
 
-      const Component = defineComponent({
-        template: `
-          <div>
-            <button @click="increment">{{ count }}</button>
-            <p>{{ next }}</p>
-          </div>
-        `,
-        computed: {
-          ...useCounter.$mapComputed(),
-        },
-        methods: {
-          ...useCounter.$mapMethods(),
-        },
-      })
+          const store = useStore()
 
-      const wrapper = shallowMount(Component, { localVue })
-      const btn = wrapper.find('button').element
-      const p = wrapper.find('p').element
-      expect(btn.innerHTML).toBe('0')
-      expect(p.innerHTML).toBe('1')
-      btn.click()
-      await localVue.nextTick()
+          store.foo()
 
-      await asyncTimeout()
+          expect(mock).toHaveBeenCalled()
 
-      expect(btn.innerHTML).toBe('1')
-      expect(p.innerHTML).toBe('2')
-    })
+          expect('val' in store).toBe(true)
+        })
 
-    it('call other store', () => {
-      const useBase = defineStore({
-        value: 123,
-      })
+        it('extend $class', () => {
+          const mockFoo = jest.fn()
+          const useBase = defineStore(
+            class {
+              foo() {
+                mockFoo()
+              }
+            }
+          )
 
-      const useStore = defineStore({
-        get baseValue() {
-          return useBase().value
-        },
-      })
+          const mockBar = jest.fn()
+          const useStore = defineStore(
+            class extends useBase.$class {
+              bar() {
+                mockBar()
+              }
+            }
+          )
 
-      const store = useStore()
+          const store = useStore()
 
-      expect(store.baseValue).toBe(123)
+          store.bar()
 
-      const baseStore = useBase()
+          expect(mockBar).toHaveBeenCalled()
 
-      baseStore.value = 444
+          store.foo()
 
-      expect(store.baseValue).toBe(444)
-    })
+          expect(mockFoo).toHaveBeenCalled()
+        })
 
-    it('set deep state value', cb => {
-      const useStore = defineStore(
-        class {
-          state = {
-            foo: {
-              bar: {
-                value: 123,
+        enableVuex &&
+          it('propogate to store', async () => {
+            const next = () => new Promise(resolve => setTimeout(resolve))
+            const useStore = defineStore(
+              class {
+                value = 123
+                get next() {
+                  return this.value + 1
+                }
+                set next(value) {
+                  this.value = value - 1
+                }
               },
+              { id: 'store' }
+            )
+
+            const store = useStore()
+
+            await next()
+
+            expect(vuexStore.state.store.value).toBe(123)
+            expect(vuexStore.getters['store/next']).toBe(124)
+
+            store.next = 400
+
+            await next()
+            expect(vuexStore.state.store.value).toBe(399)
+            expect(vuexStore.getters['store/next']).toBe(400)
+
+            store.next = 1001
+
+            await next()
+            expect(vuexStore.state.store.value).toBe(1000)
+            expect(vuexStore.getters['store/next']).toBe(1001)
+          })
+
+        it('returns same instance', () => {
+          const useStore = defineStore(
+            class {
+              foo = 123
+            }
+          )
+
+          const storeA = useStore()
+
+          const storeB = useStore()
+
+          expect(storeB === storeA).toBe(true)
+        })
+
+        it('object syntax', () => {
+          const useStore = defineStore({
+            value: 123,
+            setValue(value: number) {
+              this.value = value
             },
+          })
+
+          const store = useStore()
+
+          expect(store.value).toBe(123)
+
+          const value = 444
+
+          store.setValue(value)
+
+          expect(store.value).toBe(value)
+        })
+
+        it('function syntax', () => {
+          const useStore = defineStore(() => ({
+            value: 123,
+            setValue(value: number) {
+              this.value = value
+            },
+          }))
+
+          const store = useStore()
+
+          expect(store.value).toBe(123)
+
+          const value = 444
+
+          store.setValue(value)
+
+          expect(store.value).toBe(value)
+        })
+
+        it('can map to options API', async () => {
+          const useCounter = defineStore(
+            class {
+              count = 0
+
+              increment() {
+                this.count++
+              }
+
+              get next() {
+                return this.count + 1
+              }
+              set next(value) {
+                this.count = value - 1
+              }
+            }
+          )
+
+          const Component = defineComponent({
+            template: `
+              <div>
+                <button @click="increment">{{ count }}</button>
+                <p>{{ next }}</p>
+              </div>
+            `,
+            computed: {
+              ...useCounter.$mapComputed(),
+            },
+            methods: {
+              ...useCounter.$mapMethods(),
+            },
+          })
+
+          const wrapper = shallowMount(Component, { localVue })
+          const btn = wrapper.find('button').element
+          const p = wrapper.find('p').element
+          expect(btn.innerHTML).toBe('0')
+          expect(p.innerHTML).toBe('1')
+          btn.click()
+          await localVue.nextTick()
+
+          await asyncTimeout()
+
+          expect(btn.innerHTML).toBe('1')
+          expect(p.innerHTML).toBe('2')
+        })
+
+        it('call other store', () => {
+          const useBase = defineStore({
+            value: 123,
+          })
+
+          const useStore = defineStore({
+            get baseValue() {
+              return useBase().value
+            },
+          })
+
+          const store = useStore()
+
+          expect(store.baseValue).toBe(123)
+
+          const baseStore = useBase()
+
+          baseStore.value = 444
+
+          expect(store.baseValue).toBe(444)
+        })
+
+        it('set deep state value', cb => {
+          const useStore = defineStore(
+            class {
+              state = {
+                foo: {
+                  bar: {
+                    value: 123,
+                  },
+                },
+              }
+            }
+          )
+
+          const store = useStore()
+
+          let firstCall = true
+
+          const mock = jest.fn()
+
+          watchEffect(() => {
+            const _ = store.state.foo.bar.value
+            if (firstCall) {
+              firstCall = false
+              return
+            }
+            mock()
+          })
+
+          store.state.foo.bar.value = 444
+
+          setTimeout(() => {
+            expect(mock).toHaveBeenCalled()
+            cb()
+          })
+        })
+
+        it('store is instanceof class, arrow function keeps lexical this', () => {
+          const defaultMock = jest.fn()
+          abstract class AbsStore {
+            foo() {
+              if (this.bar) {
+                this.bar()
+              } else {
+                defaultMock()
+              }
+            }
+
+            bar?: () => void
           }
-        }
-      )
 
-      const store = useStore()
+          let instance: any = undefined
 
-      let firstCall = true
-
-      const mock = jest.fn()
-
-      watchEffect(() => {
-        const _ = store.state.foo.bar.value
-        if (firstCall) {
-          firstCall = false
-          return
-        }
-        mock()
-      })
-
-      store.state.foo.bar.value = 444
-
-      setTimeout(() => {
-        expect(mock).toHaveBeenCalled()
-        cb()
-      })
-    })
-
-    it('store is instanceof class, arrow function keeps lexical this', async () => {
-      const defaultMock = jest.fn()
-      abstract class AbsStore {
-        foo() {
-          if (this.bar) {
-            this.bar()
-          } else {
-            defaultMock()
-          }
-        }
-
-        bar?: () => void
-      }
-
-      let instance: any = undefined
-
-      class Store extends AbsStore {
-        bar = () => {
-          instance = this
-        }
-      }
-
-      const useStore = defineStore(Store)
-
-      const store = useStore()
-
-      await store.bar()
-
-      expect(defaultMock).not.toHaveBeenCalled()
-
-      expect(store instanceof Store).toBe(true)
-      expect(instance instanceof Store).toBe(true)
-
-      expect(store).toBe(instance)
-    })
-
-    it('getter reacts to private state change', async () => {
-      const useStore = defineStore(
-        class {
-          private _value = false
-          get value() {
-            return this._value
+          class Store extends AbsStore {
+            bar = () => {
+              instance = this
+            }
           }
 
-          setValue(value: boolean) {
-            this._value = value
-          }
-        }
-      )
+          const useStore = defineStore(Store)
 
-      const store = useStore()
+          const store = useStore()
 
-      expect(store.value).toBe(false)
+          store.bar()
 
-      await store.setValue(true)
+          expect(defaultMock).not.toHaveBeenCalled()
 
-      expect(store.value).toBe(true)
-    })
+          expect(store instanceof Store).toBe(true)
+          expect(instance instanceof Store).toBe(true)
 
-    it('$refs works', async () => {
-      const useStore = defineStore(
-        class {
-          private _value = false
+          expect(store).toBe(instance)
+        })
 
-          get value() {
-            return this._value
-          }
+        it('getter reacts to private state change', () => {
+          const useStore = defineStore(
+            class {
+              private _value = false
+              get value() {
+                return this._value
+              }
 
-          setValue(value: boolean) {
-            this._value = value
-          }
+              setValue(value: boolean) {
+                this._value = value
+              }
+            }
+          )
 
-          private _count = 0
+          const store = useStore()
 
-          get count() {
-            return this._count
-          }
-          set count(value) {
-            this._count = value
-          }
-        }
-      )
+          expect(store.value).toBe(false)
 
-      const store = useStore()
+          store.setValue(true)
 
-      const { value, count, setValue } = useStore.$refs
+          expect(store.value).toBe(true)
+        })
 
-      expect(store.value).toBe(false)
-      expect(value.value).toBe(false)
+        it('$refs works', () => {
+          const useStore = defineStore(
+            class {
+              private _value = false
 
-      expect(store.count).toBe(0)
-      expect(count.value).toBe(0)
+              get value() {
+                return this._value
+              }
 
-      await setValue(true)
+              setValue(value: boolean) {
+                this._value = value
+              }
 
-      expect(store.value).toBe(true)
-      expect(value.value).toBe(true)
+              private _count = 0
 
-      await store.setValue(false)
+              get count() {
+                return this._count
+              }
+              set count(value) {
+                this._count = value
+              }
+            }
+          )
 
-      expect(store.value).toBe(false)
-      expect(value.value).toBe(false)
-    })
+          const store = useStore()
 
-    it('action does not trigger reactivity on other properties', cb => {
-      const useStore = defineStore(
-        class {
-          value = ''
+          const { value, count, setValue } = useStore.$refs
 
-          setValue(value: string) {
-            this.value = value
-          }
-        }
-      )
+          expect(store.value).toBe(false)
+          expect(value.value).toBe(false)
 
-      const store = useStore()
+          expect(store.count).toBe(0)
+          expect(count.value).toBe(0)
 
-      let callCount = 0
-      watchEffect(() => {
-        callCount++
-        if (callCount > 1) return
-        store.setValue('abc')
-      })
+          setValue(true)
 
-      setTimeout(() => {
-        setTimeout(() => {
-          expect(callCount).toBe(1)
-          cb()
+          expect(store.value).toBe(true)
+          expect(value.value).toBe(true)
+
+          store.setValue(false)
+
+          expect(store.value).toBe(false)
+          expect(value.value).toBe(false)
+        })
+
+        it('action does not trigger reactivity on other properties', cb => {
+          const useStore = defineStore(
+            class {
+              value = ''
+
+              setValue(value: string) {
+                this.value = value
+              }
+            }
+          )
+
+          const store = useStore()
+
+          let callCount = 0
+          watchEffect(() => {
+            callCount++
+            if (callCount > 1) return
+            store.setValue('abc')
+          })
+
+          setTimeout(() => {
+            setTimeout(() => {
+              expect(callCount).toBe(1)
+              cb()
+            })
+          })
+        })
+
+        it('can override getter', () => {
+          const baseMock = jest.fn()
+          const useBaseStore = defineStore(
+            class {
+              value = 'abc'
+
+              get upperValue() {
+                baseMock()
+                return this.value.toUpperCase()
+              }
+            }
+          )
+
+          const overrideMock = jest.fn()
+          const useStore = defineStore(
+            class extends useBaseStore.$class {
+              get upperValue() {
+                overrideMock()
+                return this.value.toUpperCase()
+              }
+            }
+          )
+
+          const store = useStore()
+
+          const value = store.upperValue
+
+          expect(value).toBe('ABC')
+
+          expect(baseMock).not.toHaveBeenCalled()
+
+          expect(overrideMock).toHaveBeenCalled()
+        })
+
+        it('can mutate nested state', () => {
+          const useStore = defineStore(
+            class {
+              data = {
+                value: '123',
+              }
+            }
+          )
+
+          const store = useStore()
+
+          const value = 'abc'
+
+          store.data.value = value
+
+          expect(store.data).toEqual({ value })
+        })
+
+        it('can mutate nested setter', () => {
+          const useStore = defineStore(
+            class {
+              _data = {
+                value: '123',
+              }
+
+              get data() {
+                return { ...this._data }
+              }
+              set data(value) {
+                this._data = value
+              }
+            }
+          )
+
+          const store = useStore()
+
+          const value = 'abc'
+
+          store.data.value = value
+
+          expect(store._data).toEqual({ value })
         })
       })
     })

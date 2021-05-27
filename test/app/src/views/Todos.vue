@@ -2,24 +2,10 @@
   <div>
     <h1>Todos ({{ store.todos.length }})</h1>
     <h2>Done: {{ store.doneCount }}</h2>
-    <h3>
-      Local Loading: {{ loadingStore.loading }}
-      <button
-        type="button"
-        @click="loadingStore.setLoading(!loadingStore.loading)"
-      >
-        {{ loadingStore.loading ? 'turn off' : 'TURN ON' }}
-      </button>
-    </h3>
-    <h3>
-      Store Loading: {{ store.loading }}
-      <button type="button" @click="storeSetLoading">
-        {{ store.loading ? 'turn off' : 'TURN ON' }}
-      </button>
-    </h3>
     <button type="button" @click="store.add">Add</button>
     <label>List:</label>
     <input type="text" v-model="store.name" />
+    <input type="text" v-model="store.info.description" />
     <ul>
       <li v-for="(todo, index) in store.todos" :key="index">
         <input
@@ -45,18 +31,11 @@ export default defineComponent({
   setup: () => {
     const store = useTodos()
 
-    watchEffect(() => {
-      const loading = store.loading
-
-      console.log('store.loading = ' + loading)
-    })
-
     const loadingStore = useLoadingStore()
 
     return {
       store,
       storeSetLoading: () => {
-        console.log(store)
         store.setLoading(!store.loading)
       },
 

@@ -1,4 +1,5 @@
 import { ComputedRef, Ref } from '@vue/composition-api'
+import { Module, Store } from 'vuex'
 
 type Equals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends <
   T
@@ -89,27 +90,19 @@ export type Mapper<T> = {
 
 export type MappedRefs<T> = {
   [P in keyof T]: T[P] extends (...args: infer A) => any
-    ? (...args: A) => Promise<void>
+    ? T[P]
     : P extends ReadonlyKeys<T>
     ? ComputedRef<T[P]>
     : Ref<T[P]>
 }
 
-export type MappedStore<T> = {
-  [P in keyof T]: T[P] extends (...args: infer A) => any
-    ? (...args: A) => Promise<void>
-    : T[P]
-}
-
-export type ResultType<T> = MappedStore<
-  T extends { new (): infer R }
-    ? R
-    : T extends () => infer R
-    ? R
-    : T extends {}
-    ? T
-    : never
->
+export type ResultType<T> = T extends { new (): infer R }
+  ? R
+  : T extends () => infer R
+  ? R
+  : T extends {}
+  ? T
+  : never
 
 export type UseStore<T> = {
   (): ResultType<T>
@@ -118,3 +111,13 @@ export type UseStore<T> = {
   $mapMethods(): MappedMethods<ResultType<T>>
   $refs: MappedRefs<ResultType<T>>
 } & (T extends { new (): {} } ? { $class: T } : {})
+
+export type VuexOptions = {
+  module: Module<any, any>
+  getStore: () => Store<any>
+}
+
+export type SetterPayload = {
+  key?: string
+  value: any
+}
