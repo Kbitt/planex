@@ -578,6 +578,18 @@ describe('create-store', () => {
 
           expect(getValue).not.toThrow()
         })
+
+        it('nullish properties included in $refs', () => {
+          const useStore = defineStore(
+            class {
+              foo = null
+              bar = undefined
+            }
+          )
+
+          expect(useStore.$refs.foo).toBeTruthy()
+          expect(useStore.$refs.bar).toBeTruthy()
+        })
       })
     })
   })

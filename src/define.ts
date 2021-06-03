@@ -87,8 +87,8 @@ const defStore = <T extends {}>(
 
       stateKeys.push(key)
       const value = defineState(id, key, property.value, vuexOptions)
-      ;[options, def].forEach(() =>
-        Object.defineProperty(store, key, {
+      ;[options, def].forEach(target =>
+        Object.defineProperty(target, key, {
           enumerable: true,
           configurable: true,
           value,
