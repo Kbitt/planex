@@ -1,7 +1,7 @@
 import { Configuration } from 'webpack'
 
 const config: Configuration = {
-  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  mode: 'development',
   target: 'node',
   entry: './src/index.ts',
   devtool: 'source-map',
@@ -23,6 +23,7 @@ const config: Configuration = {
   externals: {
     '@vue/composition-api': '@vue/composition-api',
   },
+  optimization: {},
 }
 
 export default config
