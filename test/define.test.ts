@@ -1,7 +1,6 @@
 import { defineComponent, watchEffect } from '@vue/composition-api'
 import { shallowMount } from '@vue/test-utils'
 import { Store } from 'vuex'
-import { UsageState } from 'webpack'
 import Planex, { defineStore } from '../src'
 import { getLocalVue } from './helper'
 
@@ -527,6 +526,57 @@ describe('create-store', () => {
           store.data.value = value
 
           expect(store._data).toEqual({ value })
+        })
+
+        it('null property works', () => {
+          class Foo {
+            value: string | null = null
+          }
+          const useStore = defineStore(Foo)
+
+          const store = useStore()
+
+          const getValue = () => store.value
+
+          expect(getValue).not.toThrow()
+
+          expect(store.value).toBe(null)
+
+          store.value = 'test'
+
+          expect(getValue).not.toThrow()
+
+          expect(store.value).toBe('test')
+        })
+
+        it('objects with null property works', () => {
+          const useStore = defineStore(
+            class {
+              foo = {
+                value: null as string | null,
+              }
+            }
+          )
+
+          const store = useStore()
+
+          const getValue = () => store.foo.value
+
+          expect(getValue).not.toThrow()
+        })
+
+        it('objects with null array values work', () => {
+          const useStore = defineStore(
+            class {
+              values: (string | null)[] = ['abc', null]
+            }
+          )
+
+          const store = useStore()
+
+          const getValue = () => store.values[1]
+
+          expect(getValue).not.toThrow()
         })
       })
     })

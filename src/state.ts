@@ -30,7 +30,7 @@ export const defineState = (
         [...id.split('/'), key].join('.')
       )
 
-      if (typeof value !== 'object') {
+      if (typeof value !== 'object' || !value) {
         return value
       }
 

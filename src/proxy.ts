@@ -47,7 +47,7 @@ const createProxyInternal = <T extends any[]>(
     const arrayProxy: any[] = []
 
     o.forEach((v, index) => {
-      if (typeof v === 'object') {
+      if (typeof v === 'object' && v) {
         arrayProxy.push(
           createProxyInternal([v], [...anscestors, index + ''], options)
         )
@@ -78,7 +78,7 @@ const createProxyInternal = <T extends any[]>(
       if (!!ignoreKeys?.[index]?.includes(key)) {
         return
       }
-      if (typeof o[key] === 'object') {
+      if (typeof o[key] === 'object' && o[key]) {
         const createObjectProxy = () => {
           let p = createProxyInternal([o[key]], [...anscestors, key], options)
           if (Array.isArray(o[key])) {
