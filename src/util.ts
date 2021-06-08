@@ -9,7 +9,7 @@ export function getAllPropertyNames(obj: any) {
     })
   } while ((obj = Object.getPrototypeOf(obj)))
 
-  return props
+  return props.filter(prop => !defaultObjectNames.has(prop))
 }
 
 export function getNearestPropertyDescriptor(obj: any, key: string) {
@@ -23,5 +23,5 @@ export function getNearestPropertyDescriptor(obj: any, key: string) {
 }
 
 export const defaultObjectNames = new Set<string>(
-  Object.getOwnPropertyNames(Object.getPrototypeOf({}))
+  Object.getOwnPropertyNames(Object.getPrototypeOf({})).concat(['__ob__'])
 )

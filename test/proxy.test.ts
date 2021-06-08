@@ -1,4 +1,4 @@
-import { createProxy, proxyToJson } from '../src/proxy'
+import { createProxy, isClassInstance, proxyToJson } from '../src/proxy'
 
 describe('proxy', () => {
   describe('createProxy', () => {
@@ -6,7 +6,7 @@ describe('proxy', () => {
       it('works with single object', () => {
         const a = { a: 123 }
 
-        const aProxy = createProxy([a])
+        const aProxy = createProxy(a)
 
         expect(a.a).toEqual(aProxy.a)
       })
@@ -20,7 +20,7 @@ describe('proxy', () => {
           },
         }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         expect(8).toEqual(proxy.area())
       })
@@ -28,9 +28,7 @@ describe('proxy', () => {
       it('works with array', () => {
         const a = { values: [1, 2, 3, 4, 5] }
 
-        const proxy = createProxy([a])
-
-        expect(proxy.values).not.toBe(a.values)
+        const proxy = createProxy(a)
 
         expect(proxy.values).toEqual(a.values)
       })
@@ -42,7 +40,7 @@ describe('proxy', () => {
           },
         }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         expect(a).toBe(a.getThis())
 
@@ -52,20 +50,10 @@ describe('proxy', () => {
         expect(a).not.toBe(proxy.getThis())
       })
 
-      it('works with multi object', () => {
-        const a = { a: 123 }
-        const b = { b: 'b123' }
-
-        const aProxy = createProxy([a, b])
-
-        expect(a.a).toEqual(aProxy.a)
-        expect(b.b).toEqual(aProxy.b)
-      })
-
       it('works with nested object', () => {
         const a = { b: { value: 123 } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         // proxied object should not have same reference
         expect(a.b).not.toBe(proxy.b)
@@ -76,7 +64,7 @@ describe('proxy', () => {
       it('works with nested nested object', () => {
         const a = { b: { c: { value: 123 } } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         // proxied object should not have same reference
         expect(a.b).not.toBe(proxy.b)
@@ -84,24 +72,13 @@ describe('proxy', () => {
 
         expect(a.b.c.value).toEqual(proxy.b.c.value)
       })
-
-      it('duplicate keys should take last', () => {
-        const a = { b: 123 }
-        const b = { b: 'abc' }
-
-        const proxy = createProxy([a, b])
-
-        expect(a.b).not.toEqual(proxy.b)
-
-        expect(b.b).toEqual(proxy.b)
-      })
     })
 
     describe('set', () => {
       it('works with single object', () => {
         const a = { a: 123 }
 
-        const aProxy = createProxy([a])
+        const aProxy = createProxy(a)
 
         const value = 989
 
@@ -110,26 +87,10 @@ describe('proxy', () => {
         expect(value).toEqual(aProxy.a)
       })
 
-      it('works with multi object', () => {
-        const a = { a: 123 }
-        const b = { b: 'b123' }
-
-        const avalue = 787
-        const bvalue = 'b898'
-
-        const aProxy = createProxy([a, b])
-
-        aProxy.a = avalue
-        aProxy.b = bvalue
-
-        expect(avalue).toEqual(aProxy.a)
-        expect(bvalue).toEqual(aProxy.b)
-      })
-
       it('works with nested object', () => {
         const a = { b: { value: 123 } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         const value = 4444
 
@@ -141,7 +102,7 @@ describe('proxy', () => {
       it('works with deeply nested object', () => {
         const a = { b: { c: { d: { value: 4483 }, value: 3333 } } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         const dValue = 22222
         const dInnerValue = 4848484
@@ -155,7 +116,7 @@ describe('proxy', () => {
       it('works with nested object properties', () => {
         const a = { b: { value: 123 } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         const value = 9998
 
@@ -167,7 +128,7 @@ describe('proxy', () => {
       it('works with nested nested object properties', () => {
         const a = { b: { c: { value: 123 } } }
 
-        const proxy = createProxy([a])
+        const proxy = createProxy(a)
 
         const value = 434343
 
@@ -176,56 +137,58 @@ describe('proxy', () => {
         expect(value).toEqual(a.b.c.value)
       })
 
-      it('duplicate keys should take last', () => {
-        const a = { b: 123 }
-        const b = { b: 'abc' }
+      it('works with class instance', () => {
+        class Foo {
+          value = 123
+        }
 
-        const value = 'xyz'
+        const foo = new Foo()
 
-        const proxy = createProxy([a, b])
+        const fooProxy = createProxy(foo)
 
-        proxy.b = value
+        expect(fooProxy instanceof Foo).toBe(true)
 
-        expect(a.b).not.toEqual(value)
+        const value = 444
 
-        expect(b.b).toEqual(value)
+        fooProxy.value = value
+
+        expect(foo.value).toBe(value)
+      })
+
+      it('works with nested date', () => {
+        class Foo {
+          value: undefined | { date: Date } = undefined
+        }
+
+        const foo = new Foo()
+
+        const fooProxy = createProxy(foo)
+
+        const value = { date: new Date() }
+
+        fooProxy.value = value
+
+        expect(foo.value).toEqual(value)
       })
     })
   })
 
-  describe('proxyToJson', () => {
-    it('works with plain object', () => {
-      const object = { foo: { a: { b: { value: 123 } } } }
+  describe('isClassInstance', () => {
+    class Foo {}
+    const data: [any, boolean][] = [
+      [{}, false],
+      [{ foo: 123 }, false],
+      [new Foo(), true],
+      [new (class {})(), true],
+      [new Date(), true],
+    ]
 
-      const copy = proxyToJson(object)
+    data.forEach(([o, expected], index) => {
+      it(`#${index} should be ${expected}`, () => {
+        const actual = isClassInstance(o)
 
-      expect(object).toEqual(copy)
-    })
-
-    it('works with proxy', () => {
-      const original = { foo: { a: { b: { value: 123 } } } }
-
-      const proxy = createProxy([original])
-
-      const json = proxyToJson(proxy)
-
-      expect(original).toEqual(json)
-    })
-
-    it('does not propogate set', () => {
-      const original = { foo: { a: { b: { value: 123 } } } }
-
-      const proxy = createProxy([original])
-
-      const json = proxyToJson(proxy)
-
-      expect(original).toEqual(json)
-
-      proxy.foo.a = { b: { value: 181283 } }
-
-      expect(original).toEqual(proxy)
-
-      expect(original).not.toEqual(json)
+        expect(actual).toBe(expected)
+      })
     })
   })
 })

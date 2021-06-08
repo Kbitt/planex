@@ -1,3 +1,5 @@
+import { getAllPropertyNames } from './util'
+
 export type MergedArgs<T extends any[]> = T extends [infer U, ...infer V]
   ? Omit<U, keyof MergedArgs<V>> & MergedArgs<V>
   : {}
@@ -22,6 +24,13 @@ export const proxyToJson = <T extends {}>(proxy: T): T => {
   return result
 }
 
+export const isClassInstance = <T extends {}>(o: T) => {
+  return (
+    typeof o === 'object' &&
+    Object.getPrototypeOf(o).constructor.name !== 'Object'
+  )
+}
+
 const sideEffectArrayMethods = [
   'push',
   'fill',
@@ -33,23 +42,19 @@ const sideEffectArrayMethods = [
   'unshift',
 ] as const
 
-const createProxyInternal = <T extends any[]>(
-  objects: [...T],
+const createProxyInternal = <T extends {}>(
+  object: T,
   anscestors: string[] = [],
   { ignoreKeys, ...options }: ProxyOptions = {}
-): ProxyOf<T> => {
-  if (Array.isArray(objects[0])) {
-    if (objects.length > 1) {
-      throw new Error('Cannot proxy together array with other objects')
-    }
-
-    const o = objects[0] as any[]
+): T => {
+  if (Array.isArray(object)) {
+    const o = object as any[]
     const arrayProxy: any[] = []
 
     o.forEach((v, index) => {
       if (typeof v === 'object' && v) {
         arrayProxy.push(
-          createProxyInternal([v], [...anscestors, index + ''], options)
+          createProxyInternal(v, [...anscestors, index + ''], options)
         )
       } else {
         arrayProxy.push(v)
@@ -72,67 +77,67 @@ const createProxyInternal = <T extends any[]>(
     return arrayProxy as any
   }
 
-  let proxy: any = {}
-  objects.forEach(o => {
-    Object.keys(o).forEach((key, index) => {
-      if (!!ignoreKeys?.[index]?.includes(key)) {
-        return
-      }
-      if (typeof o[key] === 'object' && o[key]) {
-        const createObjectProxy = () => {
-          let p = createProxyInternal([o[key]], [...anscestors, key], options)
-          if (Array.isArray(o[key])) {
-            p.length = o[key].length
-            p = Array.from(p as any)
-          }
-
-          return p
+  let proxy: any = Object.create(object)
+  const o = object as any
+  const props = getAllPropertyNames(o)
+  props.forEach((key, index) => {
+    if (!!ignoreKeys?.[index]?.includes(key)) {
+      return
+    }
+    if (typeof o[key] === 'object' && o[key] && !isClassInstance(o[key])) {
+      const createObjectProxy = () => {
+        let p = createProxyInternal(o[key], [...anscestors, key], options)
+        if (Array.isArray(o[key])) {
+          p.length = o[key].length
+          p = Array.from(p as any)
         }
 
-        let innerProxy = createObjectProxy()
-
-        Object.defineProperty(proxy, key, {
-          configurable: true,
-          enumerable: true,
-          get: () => {
-            return innerProxy
-          },
-          set: value => {
-            if (options.setter) {
-              options.setter([...anscestors, key].join('.'), value)
-            } else {
-              o[key] = value
-              innerProxy = createObjectProxy()
-            }
-          },
-        })
-      } else if (typeof o[key] === 'function') {
-        const fn = o[key] as Function
-        proxy[key] = fn.bind(proxy)
-      } else {
-        Object.defineProperty(proxy, key, {
-          configurable: true,
-          enumerable: true,
-          get: () => o[key],
-          set: value => {
-            if (options.setter) {
-              options.setter([...anscestors, key].join('.'), value)
-            } else {
-              o[key] = value
-            }
-          },
-        })
+        return p
       }
-    })
+
+      let innerProxy = createObjectProxy()
+
+      Object.defineProperty(proxy, key, {
+        configurable: true,
+        enumerable: true,
+        get: () => {
+          return innerProxy
+        },
+        set: value => {
+          if (options.setter) {
+            options.setter([...anscestors, key].join('.'), value)
+          } else {
+            o[key] = value
+            innerProxy = createObjectProxy()
+          }
+        },
+      })
+    } else if (typeof o[key] === 'function') {
+      const fn = o[key] as Function
+      proxy[key] = fn.bind(proxy)
+    } else {
+      Object.defineProperty(proxy, key, {
+        configurable: true,
+        enumerable: true,
+        get: () => o[key],
+        set: value => {
+          if (options.setter) {
+            options.setter([...anscestors, key].join('.'), value)
+          } else {
+            o[key] = value
+          }
+        },
+      })
+    }
   })
 
   return proxy
 }
 
-export const createProxy = <T extends any[]>(
-  objects: [...T],
+export const createProxy = <T extends {}>(
+  object: T,
   options: ProxyOptions = {}
-) => createProxyInternal(objects, [], options)
+) => createProxyInternal(object, [], options)
 
 export type ProxyOptions = {
   setter?: (key: string, value: any) => void

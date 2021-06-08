@@ -20,7 +20,8 @@ export const defineState = (
   }
   options.module.state[key] = value
   options.module.mutations[`SET_${key}`] = (state, payload: SetterPayload) => {
-    set(state, [key, payload.key].filter(Boolean).join('.'), payload.value)
+    const path = [key, payload.key].filter(Boolean).join('.')
+    set(state, path, payload.value)
   }
 
   return computed({
@@ -34,7 +35,7 @@ export const defineState = (
         return value
       }
 
-      return createProxy([value], {
+      return createProxy(value, {
         setter: (innerKey, val) => {
           options.getStore().commit(`${id}/SET_${key}`, {
             key: innerKey,

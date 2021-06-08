@@ -54,7 +54,7 @@ export const defineComputed = (
           return value
         }
 
-        return createProxy([value], {
+        return createProxy(value, {
           setter: (innerKey, value) => {
             options
               .getStore()

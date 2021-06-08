@@ -34,9 +34,7 @@ const defStore = <T extends {}>(
       }
     : undefined
 
-  const properties = getAllPropertyNames(options).filter(
-    key => !defaultObjectNames.has(key)
-  )
+  const properties = getAllPropertyNames(options)
 
   properties.forEach(key => {
     planexLog(`(${id}) configuring key: ${key}`)

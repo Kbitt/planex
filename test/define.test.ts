@@ -590,6 +590,25 @@ describe('create-store', () => {
           expect(useStore.$refs.foo).toBeTruthy()
           expect(useStore.$refs.bar).toBeTruthy()
         })
+
+        it('nested date preserved', () => {
+          const useStore = defineStore(
+            class {
+              value: undefined | { value: Date } = undefined
+            }
+          )
+
+          const store = useStore()
+
+          const value = new Date()
+
+          store.value = { value }
+
+          const actual = store.value?.value
+
+          expect(actual instanceof Date).toBe(true)
+          expect(actual.valueOf()).toBe(value.valueOf())
+        })
       })
     })
   })
