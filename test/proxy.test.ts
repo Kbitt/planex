@@ -1,4 +1,4 @@
-import { createProxy, isClassInstance, proxyToJson } from '../src/proxy'
+import { createProxy, isClassInstance, cloneClassInstance } from '../src/proxy'
 
 describe('proxy', () => {
   describe('createProxy', () => {
@@ -189,6 +189,78 @@ describe('proxy', () => {
 
         expect(actual).toBe(expected)
       })
+    })
+  })
+
+  describe('cloneClassInstance', () => {
+    it('works', () => {
+      class Foo {
+        value = 123
+
+        get double() {
+          return this.value * 2
+        }
+      }
+
+      const foo = new Foo()
+
+      const clone = cloneClassInstance(foo)
+
+      expect(clone instanceof Foo).toBe(true)
+    })
+
+    it('works with constructor class', () => {
+      class Foo {
+        constructor(public value: number) {}
+
+        get double() {
+          return this.value * 2
+        }
+      }
+
+      const value = 444
+
+      const foo = new Foo(value)
+
+      const clone = cloneClassInstance(foo)
+
+      expect(clone instanceof Foo).toBe(true)
+      expect(clone.value).toBe(value)
+      expect(clone.double).toBe(2 * value)
+    })
+
+    it('works with complex dependencies', () => {
+      class ValueProvider {
+        constructor(private _value: number) {}
+        get value() {
+          return this._value
+        }
+        set value(value) {
+          this._value = value
+        }
+      }
+      class Foo {
+        constructor(public provider: ValueProvider) {}
+
+        get value() {
+          return this.provider.value
+        }
+
+        get double() {
+          return this.provider.value * 2
+        }
+      }
+
+      const value = 444
+
+      const foo = new Foo(new ValueProvider(value))
+
+      const clone = cloneClassInstance(foo)
+
+      expect(clone instanceof Foo).toBe(true)
+      expect(clone.value).toBe(value)
+      expect(clone.double).toBe(2 * value)
+      expect(foo.provider).toBe(clone.provider)
     })
   })
 })

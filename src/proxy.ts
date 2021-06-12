@@ -6,6 +6,21 @@ export type MergedArgs<T extends any[]> = T extends [infer U, ...infer V]
 
 export type ProxyOf<T extends any[]> = MergedArgs<T>
 
+export const cloneClassInstance = <T extends {}>(orig: T): T => {
+  return Object.assign(Object.create(Object.getPrototypeOf(orig)), orig)
+}
+
+export const cloneObject = <T extends {}>(o: T): T => {
+  if (isClassInstance(o)) {
+    if (o instanceof Date) {
+      return (new Date(o) as any) as T
+    }
+
+    return cloneClassInstance(o)
+  }
+
+  return Object.create(o)
+}
 export const proxyToJson = <T extends {}>(proxy: T): T => {
   const result: any = {}
 
@@ -77,14 +92,14 @@ const createProxyInternal = <T extends {}>(
     return arrayProxy as any
   }
 
-  let proxy: any = Object.create(object)
+  let proxy: any = cloneObject(object)
   const o = object as any
   const props = getAllPropertyNames(o)
   props.forEach((key, index) => {
     if (!!ignoreKeys?.[index]?.includes(key)) {
       return
     }
-    if (typeof o[key] === 'object' && o[key] && !isClassInstance(o[key])) {
+    if (typeof o[key] === 'object' && o[key]) {
       const createObjectProxy = () => {
         let p = createProxyInternal(o[key], [...anscestors, key], options)
         if (Array.isArray(o[key])) {
