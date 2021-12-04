@@ -1,4 +1,4 @@
-import { defineComponent, watchEffect } from '@vue/composition-api'
+import { defineComponent, isReactive, watchEffect } from '@vue/composition-api'
 import { shallowMount } from '@vue/test-utils'
 import { Store } from 'vuex'
 import Planex, { defineStore } from '../src'
@@ -16,6 +16,12 @@ describe('create-store', () => {
     vuexStore = new Store({ strict: true })
     localVue.use(Planex, { useVuex: { store: vuexStore } })
   }
+
+  describe('test', () => {
+    beforeEach(() => {
+      setup(false)
+    })
+  })
 
   describe('defineStore', () => {
     ;[true, false].forEach(enableVuex => {
@@ -62,6 +68,68 @@ describe('create-store', () => {
           expect(store.next).toBe(445)
 
           expect(nextMock).toHaveBeenCalledTimes(2)
+        })
+
+        it('nested json is reactive', () => {
+          const useFoo = defineStore({
+            bar: { baz: 123 },
+          })
+
+          const store = useFoo()
+
+          expect(isReactive(store)).toBe(true)
+
+          expect(isReactive(store.bar)).toBe(true)
+        })
+
+        it('nested object is reactive', () => {
+          class Foo {
+            bar = {
+              baz: 123,
+            }
+          }
+
+          const useFoo = defineStore(Foo)
+
+          const store = useFoo()
+
+          expect(isReactive(store)).toBe(true)
+
+          expect(isReactive(store.bar)).toBe(true)
+        })
+
+        it('resetting nested object is reactive', () => {
+          class Foo {
+            bar = {
+              baz: 123,
+            }
+          }
+
+          const useFoo = defineStore(Foo)
+
+          const store = useFoo()
+
+          store.bar = { baz: 7777 }
+
+          expect(isReactive(store)).toBe(true)
+
+          expect(isReactive(store.bar)).toBe(true)
+        })
+
+        it('nested object from base class is reactive', () => {
+          class Foo {
+            bar = {
+              baz: 123,
+            }
+          }
+
+          const useFoo = defineStore(class extends Foo {})
+
+          const store = useFoo()
+
+          expect(isReactive(store)).toBe(true)
+
+          expect(isReactive(store.bar)).toBe(true)
         })
 
         it('inheritance', () => {
@@ -506,15 +574,16 @@ describe('create-store', () => {
         it('can mutate nested setter', () => {
           const useStore = defineStore(
             class {
-              _data = {
+              private innerData = {
                 value: '123',
               }
 
               get data() {
-                return { ...this._data }
+                console.log('get data?')
+                return this.innerData
               }
               set data(value) {
-                this._data = value
+                this.innerData = value
               }
             }
           )
@@ -525,7 +594,7 @@ describe('create-store', () => {
 
           store.data.value = value
 
-          expect(store._data).toEqual({ value })
+          expect(store.data).toEqual({ value })
         })
 
         it('null property works', () => {

@@ -7,22 +7,19 @@ import { planexLog } from './logging'
 import { defineState } from './state'
 import { getStore, usingVuex } from './store'
 import { DefineOptions, MappedRefs, ResultType, UseStore } from './types'
-import {
-  defaultObjectNames,
-  getAllPropertyNames,
-  getNearestPropertyDescriptor,
-} from './util'
+import { getAllPropertyNames, getNearestPropertyDescriptor } from './util'
 
 const defStore = <T extends {}>(
   options: T,
   id: string,
+  getThis: () => T,
   getVuexStore?: () => Store<any>
 ): [
   MappedRefs<T>,
   { stateKeys: string[]; getterKeys: string[]; actionKeys: string[] },
   Module<any, any> | undefined
 ] => {
-  const store = options as any
+  // const store = options as any
   const def = {} as any
   const stateKeys: string[] = []
   const getterKeys: string[] = []
@@ -50,7 +47,7 @@ const defStore = <T extends {}>(
       const value = defineAction(
         id,
         key,
-        property.value.bind(store),
+        (...args: any) => property.value.call(getThis(), ...args),
         vuexOptions
       )
       ;[options, def].forEach(target =>
@@ -63,16 +60,14 @@ const defStore = <T extends {}>(
       // computed
     } else if (property.get) {
       getterKeys.push(key)
-
-      const value = defineComputed(
-        id,
-        key,
-        () => property.get!.call(store),
-        property.set ? (val: any) => property.set?.call(store, val) : undefined,
-        vuexOptions
-      )
-
       ;[options, def].forEach(target => {
+        const value = defineComputed(
+          id,
+          key,
+          () => property.get!.call(getThis()),
+          property.set ? val => property.set?.call(getThis(), val) : undefined,
+          vuexOptions
+        )
         Object.defineProperty(target, key, {
           enumerable: true,
           configurable: true,
@@ -150,6 +145,7 @@ export function defineStore<T extends { new (): {} } | (() => {}) | {}>(
   const [def, keys, vuexModule] = defStore(
     instance,
     storeId,
+    () => store,
     usingVuex() && options.id !== false ? getStore : undefined
   )
 

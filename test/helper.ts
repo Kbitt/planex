@@ -11,7 +11,9 @@ export const getLocalVue = () => {
   return localVue
 }
 
+export type LocalVue = ReturnType<typeof getLocalVue>
+
 export const wait = (time: number) =>
-  new Promise<void>((resolve) => {
+  new Promise<void>(resolve => {
     setTimeout(() => resolve(), time)
   })
