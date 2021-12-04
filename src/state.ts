@@ -1,6 +1,6 @@
-import { computed, Ref, ref } from '@vue/composition-api'
-import { get, set } from './getset'
-import { createProxy } from './proxy'
+import { Ref, ref, watch } from '@vue/composition-api'
+import { copyValue } from './copy'
+import { set } from './getset'
 import { SetterPayload, VuexOptions } from './types'
 
 export const defineState = (
@@ -9,8 +9,9 @@ export const defineState = (
   value: any,
   options?: VuexOptions
 ): Ref<any> => {
+  const valueRef = ref(copyValue(value))
   if (!options) {
-    return ref(value)
+    return valueRef
   }
   if (!options.module.state) {
     options.module.state = {}
@@ -18,32 +19,19 @@ export const defineState = (
   if (!options.module.mutations) {
     options.module.mutations = {}
   }
-  options.module.state[key] = value
+  options.module.state[key] = copyValue(value)
   options.module.mutations[`SET_${key}`] = (state, payload: SetterPayload) => {
     const path = [key, payload.key].filter(Boolean).join('.')
     set(state, path, payload.value)
   }
 
-  return computed({
-    get: () => {
-      const value = get(
-        options.getStore().state,
-        [...id.split('/'), key].join('.')
-      )
-
-      if (typeof value !== 'object' || !value) {
-        return value
-      }
-
-      return createProxy(value, {
-        setter: (innerKey, val) => {
-          options.getStore().commit(`${id}/SET_${key}`, {
-            key: innerKey,
-            value: val,
-          })
-        },
-      })
+  watch(
+    () => valueRef.value,
+    state => {
+      options.getStore().commit(`${id}/SET_${key}`, { value: state })
     },
-    set: value => options.getStore().commit(`${id}/SET_${key}`, { value }),
-  })
+    { deep: true }
+  )
+
+  return valueRef
 }

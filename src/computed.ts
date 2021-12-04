@@ -1,7 +1,30 @@
-import { computed, ComputedRef, Ref } from '@vue/composition-api'
-import { get, set } from './getset'
-import { createProxy } from './proxy'
-import { SetterPayload, VuexOptions } from './types'
+import {
+  computed,
+  ComputedRef,
+  Ref,
+  watch,
+  WritableComputedOptions,
+  WritableComputedRef,
+} from '@vue/composition-api'
+import { VuexOptions } from './types'
+
+export const deepWritableComputed = <T>({
+  get,
+  set,
+}: WritableComputedOptions<T>): WritableComputedRef<T> => {
+  const cpu = computed({ get, set })
+
+  // TODO pass stop handler to context
+  watch(
+    () => cpu.value,
+    value => {
+      set(value)
+    },
+    { deep: true }
+  )
+
+  return cpu
+}
 
 export const defineComputed = (
   id: string,
@@ -10,61 +33,16 @@ export const defineComputed = (
   setter?: (value?: any) => void,
   options?: VuexOptions
 ): Ref<any> | ComputedRef<any> => {
-  if (!options) {
-    if (setter) {
-      return computed({
-        get: getter,
-        set: setter,
-      })
+  if (options) {
+    if (!options.module.getters) {
+      options.module.getters = {}
     }
-    return computed(getter)
+
+    options.module.getters[key] = getter
   }
-
-  if (!options.module.getters) {
-    options.module.getters = {}
-  }
-
-  options.module.getters[key] = getter
-
-  const computedGet = () => get(options.getStore().getters, `${id}/${key}`)
 
   if (setter) {
-    if (!options.module.actions) {
-      options.module.actions = {}
-    }
-
-    options.module.actions[`set_${key}`] = (
-      _,
-      { key: innerKey, value }: SetterPayload
-    ) => {
-      if (!innerKey) {
-        setter(value)
-      } else {
-        const original = { ...computedGet() }
-        set(original, innerKey, value)
-        setter(original)
-      }
-    }
-
-    return computed({
-      get: () => {
-        const value = computedGet()
-
-        if (typeof value !== 'object') {
-          return value
-        }
-
-        return createProxy(value, {
-          setter: (innerKey, value) => {
-            options
-              .getStore()
-              .dispatch(`${id}/set_${key}`, { key: innerKey, value })
-          },
-        })
-      },
-      set: value => options.getStore().dispatch(`${id}/set_${key}`, { value }),
-    })
+    return deepWritableComputed({ get: getter, set: setter })
   }
-
-  return computed(computedGet)
+  return computed(getter)
 }
