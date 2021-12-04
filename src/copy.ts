@@ -7,6 +7,10 @@ export const copyValue = <T>(input: T): T => {
     return new Date(input) as any
   }
 
+  if (Array.isArray(input)) {
+    return input.map(item => copyValue(item)) as any
+  }
+
   if (typeof input === 'object') {
     const copyObject = {} as any
 
