@@ -91,7 +91,7 @@ export type ToStoreRefs<T extends object> = {
  * @param store The store to create refs from
  * @returns
  */
-const storeToRefs = <T extends object>(store: T) => {
+const storeToRefs = <T extends object>(store: T): ToStoreRefs<T> => {
   if (!(PROPS in store)) {
     throw new Error('Expected a store created with createStore or defineStore')
   }
@@ -103,7 +103,7 @@ const storeToRefs = <T extends object>(store: T) => {
     ;(refs as any)[key] = (...args: any) => (store as any)[key](...args)
   })
 
-  return refs as ToStoreRefs<T>
+  return refs as any
 }
 
 export { storeToRefs, createStore }
