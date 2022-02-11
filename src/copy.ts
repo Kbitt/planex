@@ -1,4 +1,4 @@
-export const copyValue = <T>(input: T): T => {
+export const clone = <T>(input: T): T => {
   if (!input) {
     return input
   }
@@ -8,21 +8,21 @@ export const copyValue = <T>(input: T): T => {
   }
 
   if (Array.isArray(input)) {
-    return input.map(item => copyValue(item)) as any
+    return input.map(item => clone(item)) as any
   }
 
   if (typeof input === 'object') {
     const copyObject = {} as any
 
     Object.keys(input).forEach(key => {
-      copyObject[key] = copyValue((input as any)[key])
+      copyObject[key] = clone((input as any)[key])
     })
 
     return copyObject
   } else if (typeof input === 'function') {
     const copyFunction = input.bind({})
     Object.keys(input).forEach(key => {
-      copyFunction[key] = copyValue((input as any)[key])
+      copyFunction[key] = clone((input as any)[key])
     })
     return copyFunction
   }

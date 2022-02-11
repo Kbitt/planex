@@ -8,7 +8,7 @@ module.exports = {
           '@babel/preset-env',
           {
             targets: {
-              node: 10, // jest seems to break without specifically setting this
+              node: 16, // jest seems to break without specifically setting this
             },
           },
         ],

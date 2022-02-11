@@ -1,5 +1,4 @@
-import { ComputedRef, Ref } from '@vue/composition-api'
-import { Module, Store } from 'vuex'
+import { ComputedRef, Ref, WritableComputedRef } from 'vue-demi'
 
 type Equals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends <
   T
@@ -10,7 +9,7 @@ type Equals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends <
 /**
  * Get all keys for the given type that are writable.
  */
-type WritableKeys<Type> = {
+export type WritableKeys<Type> = {
   [Key in keyof Type]-?: Equals<
     { [K in Key]: Type[Key] },
     { -readonly [K in Key]: Type[Key] },
@@ -46,16 +45,7 @@ type StateKeys<T> = {
     : never
 }[keyof T]
 
-type ExtractState<T> = Pick<T, StateKeys<T>>
-
 type GetterKeys<T> = keyof Omit<T, WritableKeys<T>>
-
-type ExtractGetters<T> = Pick<T, ReadonlyKeys<T>>
-
-type ExtractActions<T> = Pick<T, FunctionKeys<T>>
-
-type StateSubscriber<T> = (state: ExtractState<T>) => void
-type GetterSubscriber<T> = (getters: ExtractGetters<T>) => void
 
 export type MappedComputedState<Type> = {
   [Key in StateKeys<Type>]: {
@@ -77,8 +67,7 @@ export type MappedMethods<Type> = {
  */
 export type DefineOptions = {
   /**
-   * Sets the store's ID, which will be used for a generated Vuex module (if enabled)
-   * If set to `false`, then Vuex integration with be disabled for this store (if it is enabled via plugin config.)
+   * Sets the store's ID. A generic unique ID will be generated if not specified.
    */
 
   id?: string | false
@@ -106,18 +95,50 @@ export type ResultType<T> = T extends { new (): infer R }
 
 export type UseStore<T> = {
   (): ResultType<T>
-  $mapComputed(): MappedComputedState<ResultType<T>> &
-    MappedComputedGetters<ResultType<T>>
-  $mapMethods(): MappedMethods<ResultType<T>>
   $refs: MappedRefs<ResultType<T>>
-} & (T extends { new (): {} } ? { $class: T } : {})
-
-export type VuexOptions = {
-  module: Module<any, any>
-  getStore: () => Store<any>
 }
 
 export type SetterPayload = {
   key?: string
   value: any
 }
+
+export type ActionKeys<T> = {
+  [Key in keyof T]: T[Key] extends Function ? Key : never
+}[keyof T]
+
+export type IfEquals<X, Y, A = X, B = never> = (<T>() => T extends X
+  ? 1
+  : 2) extends <T>() => T extends Y ? 1 : 2
+  ? A
+  : B
+
+type ComputedRefKeys<T> = {
+  [Key in keyof T]: T[Key] extends ComputedRef<any>
+    ? 'value' extends ReadonlyKeys<T[Key]>
+      ? Key
+      : never
+    : never
+}[keyof T]
+
+type WritableRefsAndMethodKeys<T> = {
+  [Key in keyof T]: Key extends ComputedRefKeys<T> ? never : Key
+}[keyof T]
+
+type Bar = {
+  a: Ref<string>
+  b: ComputedRef<string>
+  c: WritableComputedRef<string>
+  foo(): void
+}
+
+export type UnwrapSetupRefs<T> = {
+  [Key in WritableRefsAndMethodKeys<T>]: T[Key] extends Ref<infer V>
+    ? V
+    : T[Key]
+} &
+  {
+    readonly [Key in ComputedRefKeys<T>]: T[Key] extends Ref<infer V>
+      ? V
+      : T[Key]
+  }

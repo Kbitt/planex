@@ -3,3 +3,4 @@ dist
 .vscode
 coverage
 temp
+yarn-error.log

@@ -1,13 +1,12 @@
 # Planex
 
-Super simple type-safe state-management stores for `vue@2` with `@vue/composition-api`. Optionally compatible with Vuex (for devtools).
+Super simple type-safe state-management stores for `vue@2` with `@vue/composition-api`.
 
 `planex` is a light wrapper around `vue`'s `reactive`/`computed` functions, providing some handy utility you don't get directly with just `reactive` alone, such as:
 
 - Reactive, cached getters by just using JavaScript getters/setters in your store definition.
 - Create store from class definitions (recommended)
 - Support for store extension via class inheritance
-- Devtools support through hooking into vuex
 
 ## Define store
 
@@ -193,66 +192,4 @@ Use `$mapComputed` and `$mapMethods` methods of your use store hook to pass the 
     },
   })
 </script>
-```
-
-## Devtools support through Vuex
-
-Use the plugin options to enable vuex support. All stores you create with `defineStore` will be added as modules to your Vuex store. This enables support for the vue-devtools vuex pane, including all the normal vuex devtools features like time travelling, editing state values, etc.
-
-```typescript
-// setup plugin at startup
-import Vue from 'vue'
-import PlanexPlugin from 'planex'
-import store from './store' // vuex store
-
-// pass in store directly to plugin
-Vue.use(PlanexPlugin, { useVuex: { store } })
-
-// or we'll find the store via mixin
-Vue.use(PlanexPlugin, { useVuex: { enabled: true } })
-
-// optionally disable vuex integration in production, if you only use it for devtools
-Vue.use(PlanexPlugin, { useVuex: { enabled: true, disableInProduction: true } })
-
-// assign id's to your stores to label the generated vuex modules
-// generic id's will automatically be generated if no ID is supplied
-const useCounter = defineStore({...}, { id: 'counter' })
-
-// or override the global vuex setting and disable for individual stores
-const useCounter = defineStore({...}, { id: false })
-
-```
-
-Without vuex enabled, you can completely remove vuex from your production code. However, since the vuex store must be passed to the vue instance to enable devtools support, it's a little tricky to conditionally remove it. The following example demonstrates one solution to making vuex tree-shakable in production:
-
-```typescript
-// store.ts
-import Vue from 'vue'
-import Vuex from 'vuex'
-
-Vue.use(Vuex)
-
-export default new Vuex.Store({})
-```
-
-```typescript
-import Vue from 'vue'
-import PlanexPlugin from 'planex'
-Vue.use(PlanexPlugin, { useVuex: { enabled: true, disableInProduction: true } })
-
-const getStore = (): Promise<{ store?: any }> => {
-  if (process.env.NODE_ENV !== 'production') {
-    return import('./store').then(({ default: store }) => ({ store }))
-  }
-
-  return Promise.resolve({})
-}
-
-getStore().then(options => {
-  new Vue({
-    ...options,
-    router,
-    render: h => h(App),
-  }).$mount('#app')
-})
 ```

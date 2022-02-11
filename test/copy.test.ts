@@ -1,4 +1,4 @@
-import { copyValue } from '../src/copy'
+import { clone } from '../src/copy'
 
 describe('copy', () => {
   describe('copyValue', () => {
@@ -11,7 +11,7 @@ describe('copy', () => {
         },
       }
 
-      const copyOfOriginal = copyValue(original)
+      const copyOfOriginal = clone(original)
 
       expect(original).toEqual(copyOfOriginal)
       expect(original).not.toBe(copyOfOriginal)
@@ -25,7 +25,7 @@ describe('copy', () => {
         return a + b
       })
 
-      const addCopy = copyValue(add)
+      const addCopy = clone(add)
 
       expect(addCopy(10, 12)).toBe(22)
 
@@ -46,7 +46,7 @@ describe('copy', () => {
         book: 0,
       }
 
-      const copyOfOriginal = copyValue(original)
+      const copyOfOriginal = clone(original)
 
       expect(original).toEqual(copyOfOriginal)
       expect(original).not.toBe(copyOfOriginal)
