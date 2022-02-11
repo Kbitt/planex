@@ -316,4 +316,44 @@ describe('createStore', () => {
       })
     })
   })
+
+  it('can chain promise from method', done => {
+    const mock = jest.fn()
+    class TestClass {
+      foo() {
+        return Promise.resolve().then(() => {
+          mock()
+        })
+      }
+    }
+
+    const store = createStore(TestClass)
+
+    store.foo().then(() => {
+      expect(mock).toHaveBeenCalled()
+      done()
+    })
+  })
+
+  it('promise chain works with store', done => {
+    class TestClass {
+      data = 123
+      get double() {
+        return this.data * 2
+      }
+      foo() {
+        return Promise.resolve().then(() => {
+          this.data = 444
+        })
+      }
+    }
+
+    const store = createStore(TestClass)
+
+    store.foo().then(() => {
+      expect(store.data).toBe(444)
+      expect(store.double).toBe(888)
+      done()
+    })
+  })
 })

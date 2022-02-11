@@ -61,7 +61,7 @@ function createStore<T extends object>(input: { new (): T } | (() => T) | T) {
       methodKeys.push(key)
       Object.defineProperty(instance, key, {
         value: markRaw((...args: any) => {
-          ;(prop.value as Function).call(reactiveInstance, ...args)
+          return (prop.value as Function).call(reactiveInstance, ...args)
         }),
       })
     }
