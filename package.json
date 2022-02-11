@@ -1,6 +1,6 @@
 {
   "name": "planex",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "files": [
     "dist/main.js",
     "dist/main.js.map",
@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@vue/devtools-api": "^6.0.0-beta.20.1",
-    "vue-demi": "^0.12.1"
+    "vue-demi": "latest"
   },
   "peerDependencies": {
     "@vue/composition-api": "^1.4.1",

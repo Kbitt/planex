@@ -22,6 +22,7 @@ const config: Configuration = {
   },
   externals: {
     '@vue/composition-api': '@vue/composition-api',
+    'vue-demi': 'vue-demi',
   },
   optimization: {},
 }
