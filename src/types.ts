@@ -1,4 +1,4 @@
-import { ComputedRef, Ref, WritableComputedRef } from 'vue-demi'
+import { ComputedRef, Ref, WritableComputedRef } from 'vue'
 
 type Equals<X, Y, A = X, B = never> = (<T>() => T extends X ? 1 : 2) extends <
   T

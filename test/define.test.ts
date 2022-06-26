@@ -1,12 +1,8 @@
-import { install, isReactive, isVue2, watchEffect } from 'vue-demi'
+import { isReactive, watchEffect } from 'vue'
 import { defineStore } from '../src'
 
-const asyncTimeout = () => new Promise(resolve => setTimeout(resolve))
-
 describe('create-store', () => {
-  const setup = () => {
-    install()
-  }
+  const setup = () => {}
 
   describe('test define', () => {
     beforeEach(() => {
@@ -308,7 +304,7 @@ describe('create-store', () => {
       expect(store instanceof Store).toBe(true)
       expect(instance instanceof Store).toBe(true)
 
-      expect(store === instance).toBe(isVue2)
+      expect(store === instance).toBe(true)
     })
 
     it('getter reacts to private state change', () => {
@@ -465,7 +461,6 @@ describe('create-store', () => {
           }
 
           get data() {
-            console.log('get data?')
             return this.innerData
           }
           set data(value) {

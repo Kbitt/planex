@@ -1,16 +1,7 @@
-import {
-  computed,
-  install,
-  isReactive,
-  ref,
-  watch,
-  watchEffect,
-} from 'vue-demi'
+import { computed, isReactive, reactive, ref, watch, watchEffect } from 'vue'
 import { classToSetup, createStore, storeToRefs } from '../src/create-store'
 
 describe('createStore', () => {
-  beforeEach(() => install())
-
   it('should foo', () => {
     class TestClass {
       value = 1
@@ -359,7 +350,7 @@ describe('createStore', () => {
 })
 
 describe('classToSetup', () => {
-  it('1', () => {
+  it('class data, get, get/set work', () => {
     class Test {
       foo = 123
       get next() {
@@ -379,16 +370,79 @@ describe('classToSetup', () => {
 
     const setupObj = setup()
 
+    const reactiveObj = reactive({ ...setupObj })
+
     const { foo, next, double } = setupObj
 
     expect(foo.value).toBe(123)
+    expect(reactiveObj.foo).toBe(123)
     expect(next.value).toBe(124)
+    expect(reactiveObj.next).toBe(124)
     expect(double.value).toBe(246)
+    expect(reactiveObj.double).toBe(246)
 
     foo.value = 500
 
     expect(foo.value).toBe(500)
+    expect(reactiveObj.foo).toBe(500)
     expect(next.value).toBe(501)
+    expect(reactiveObj.next).toBe(501)
     expect(double.value).toBe(1000)
+    expect(reactiveObj.double).toBe(1000)
+
+    double.value = 2000
+
+    expect(foo.value).toBe(1000)
+    expect(reactiveObj.foo).toBe(1000)
+    expect(next.value).toBe(1001)
+    expect(reactiveObj.next).toBe(1001)
+    expect(double.value).toBe(2000)
+    expect(reactiveObj.double).toBe(2000)
+  })
+
+  it('action/method works', () => {
+    class Counter {
+      count = 0
+
+      increment() {
+        this.count++
+      }
+    }
+
+    const setup = classToSetup(Counter)()
+
+    const reactiveObj = reactive({ ...setup })
+
+    const check = (value: number) => {
+      expect(setup.count.value).toBe(value)
+      expect(reactiveObj.count).toBe(value)
+    }
+
+    check(0)
+
+    setup.increment()
+
+    check(1)
+
+    reactiveObj.increment()
+
+    check(2)
+  })
+
+  it('separate instances do not interact', () => {
+    class Data {
+      value = 123
+    }
+
+    const setup = classToSetup(Data)
+
+    const inst1 = reactive(setup())
+    const inst2 = reactive(setup())
+
+    expect(inst1.value).toBe(inst2.value)
+
+    inst1.value = 444
+
+    expect(inst1.value).not.toBe(inst2.value)
   })
 })

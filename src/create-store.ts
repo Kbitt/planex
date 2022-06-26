@@ -1,13 +1,4 @@
-import { ToRefs } from '@vue/composition-api'
-import {
-  computed,
-  ComputedRef,
-  markRaw,
-  reactive,
-  ref,
-  Ref,
-  toRefs,
-} from 'vue-demi'
+import { computed, ComputedRef, markRaw, reactive, ref, Ref, toRefs } from 'vue'
 import { ActionKeys, UnwrapSetupRefs, WritableKeys } from './types'
 import { getAllPropertyNames, getNearestPropertyDescriptor } from './util'
 
@@ -42,10 +33,8 @@ function createStoreInternal(instance: any) {
       })
     } else if (typeof prop.value === 'function') {
       methodKeys.push(key)
-      Object.defineProperty(instance, key, {
-        value: markRaw((...args: any) => {
-          return (prop.value as Function).call(reactiveInstance, ...args)
-        }),
+      instance[key] = markRaw((...args: any) => {
+        return (prop.value as Function).call(reactiveInstance, ...args)
       })
     } else {
       Object.defineProperty(instance, key, {
@@ -62,9 +51,11 @@ function createStoreInternal(instance: any) {
 
   Object.assign(instance, { [PROPS]: storeProperties })
 
+  const refInstance = { ...instance }
+
   const reactiveInstance = reactive(instance)
 
-  return { reactiveInstance, refInstance: instance }
+  return { reactiveInstance, refInstance }
 }
 
 /**
@@ -100,7 +91,7 @@ function createStore<T extends object>(input: { new (): T } | (() => T) | T) {
 
 function classToSetup<T extends { new (): any }>(ctor: T) {
   return () =>
-    createStoreInternal(new ctor()).refInstance as ToRefs<InstanceType<T>>
+    createStoreInternal(new ctor()).refInstance as ToStoreRefs<InstanceType<T>>
 }
 
 export type ToStoreRefs<T extends object> = {
