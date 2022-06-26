@@ -6,7 +6,7 @@ import {
   watch,
   watchEffect,
 } from 'vue-demi'
-import { createStore, storeToRefs } from '../src/create-store'
+import { classToSetup, createStore, storeToRefs } from '../src/create-store'
 
 describe('createStore', () => {
   beforeEach(() => install())
@@ -355,5 +355,40 @@ describe('createStore', () => {
       expect(store.double).toBe(888)
       done()
     })
+  })
+})
+
+describe('classToSetup', () => {
+  it('1', () => {
+    class Test {
+      foo = 123
+      get next() {
+        return 1 + this.foo
+      }
+
+      get double() {
+        return 2 * this.foo
+      }
+
+      set double(value) {
+        this.foo = value / 2
+      }
+    }
+
+    const setup = classToSetup(Test)
+
+    const setupObj = setup()
+
+    const { foo, next, double } = setupObj
+
+    expect(foo.value).toBe(123)
+    expect(next.value).toBe(124)
+    expect(double.value).toBe(246)
+
+    foo.value = 500
+
+    expect(foo.value).toBe(500)
+    expect(next.value).toBe(501)
+    expect(double.value).toBe(1000)
   })
 })

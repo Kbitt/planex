@@ -9,11 +9,11 @@ const config: Configuration = {
     // Add `.ts` and `.tsx` as a resolvable extension.
     extensions: ['.ts', '.tsx', '.js'],
   },
-  output: {
-    library: {
-      type: 'umd',
-    },
-  },
+  // output: {
+  //   library: {
+  //     type: 'umd',
+  //   },
+  // },
   module: {
     rules: [
       // all files with a `.ts` or `.tsx` extension will be handled by `ts-loader`

@@ -1,4 +1,13 @@
-import { computed, ComputedRef, markRaw, reactive, Ref, toRefs } from 'vue-demi'
+import { ToRefs } from '@vue/composition-api'
+import {
+  computed,
+  ComputedRef,
+  markRaw,
+  reactive,
+  ref,
+  Ref,
+  toRefs,
+} from 'vue-demi'
 import { ActionKeys, UnwrapSetupRefs, WritableKeys } from './types'
 import { getAllPropertyNames, getNearestPropertyDescriptor } from './util'
 
@@ -8,6 +17,54 @@ interface StoreWithProps {
   [PROPS]: {
     methodKeys: string[]
   }
+}
+
+function createStoreInternal(instance: any) {
+  const methodKeys: string[] = []
+
+  getAllPropertyNames(instance).forEach(key => {
+    const prop = getNearestPropertyDescriptor(instance, key)
+    if (!prop) return
+    if (prop.get && prop.set) {
+      Object.defineProperty(instance, key, {
+        configurable: true,
+        enumerable: true,
+        value: computed({
+          get: () => prop.get!.call(reactiveInstance),
+          set: value => prop.set!.call(reactiveInstance, value),
+        }),
+      })
+    } else if (prop.get) {
+      Object.defineProperty(instance, key, {
+        configurable: true,
+        enumerable: true,
+        value: computed(() => prop.get!.call(reactiveInstance)),
+      })
+    } else if (typeof prop.value === 'function') {
+      methodKeys.push(key)
+      Object.defineProperty(instance, key, {
+        value: markRaw((...args: any) => {
+          return (prop.value as Function).call(reactiveInstance, ...args)
+        }),
+      })
+    } else {
+      Object.defineProperty(instance, key, {
+        configurable: true,
+        enumerable: true,
+        value: ref(prop.value),
+      })
+    }
+  })
+
+  const storeProperties = markRaw({
+    methodKeys,
+  })
+
+  Object.assign(instance, { [PROPS]: storeProperties })
+
+  const reactiveInstance = reactive(instance)
+
+  return { reactiveInstance, refInstance: instance }
 }
 
 /**
@@ -37,45 +94,13 @@ function createStore<T extends object>(input: { new (): T } | (() => T) | T) {
   } else {
     instance = input
   }
-  const methodKeys: string[] = []
 
-  getAllPropertyNames(instance).forEach(key => {
-    const prop = getNearestPropertyDescriptor(instance, key)
-    if (!prop) return
-    if (prop.get && prop.set) {
-      Object.defineProperty(instance, key, {
-        configurable: true,
-        enumerable: true,
-        value: computed({
-          get: () => prop.get!.call(reactiveInstance),
-          set: value => prop.set!.call(reactiveInstance, value),
-        }),
-      })
-    } else if (prop.get) {
-      Object.defineProperty(instance, key, {
-        configurable: true,
-        enumerable: true,
-        value: computed(() => prop.get!.call(reactiveInstance)),
-      })
-    } else if (typeof prop.value === 'function') {
-      methodKeys.push(key)
-      Object.defineProperty(instance, key, {
-        value: markRaw((...args: any) => {
-          return (prop.value as Function).call(reactiveInstance, ...args)
-        }),
-      })
-    }
-  })
+  return createStoreInternal(instance).reactiveInstance
+}
 
-  const storeProperties = markRaw({
-    methodKeys,
-  })
-
-  Object.assign(instance, { [PROPS]: storeProperties })
-
-  const reactiveInstance = reactive(instance)
-
-  return reactiveInstance
+function classToSetup<T extends { new (): any }>(ctor: T) {
+  return () =>
+    createStoreInternal(new ctor()).refInstance as ToRefs<InstanceType<T>>
 }
 
 export type ToStoreRefs<T extends object> = {
@@ -106,4 +131,4 @@ const storeToRefs = <T extends object>(store: T): ToStoreRefs<T> => {
   return refs as any
 }
 
-export { storeToRefs, createStore }
+export { storeToRefs, createStore, classToSetup }
