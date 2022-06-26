@@ -21,7 +21,7 @@ const config: Configuration = {
     ],
   },
   externals: {
-    vue: 'Vue',
+    vue: 'vue',
   },
   optimization: {},
 }
