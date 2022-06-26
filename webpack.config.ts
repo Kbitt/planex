@@ -24,6 +24,11 @@ const config: Configuration = {
     vue: 'vue',
   },
   optimization: {},
+  output: {
+    library: {
+      type: 'commonjs',
+    },
+  },
 }
 
 export default config
